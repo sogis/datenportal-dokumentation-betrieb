@@ -29,24 +29,25 @@ organisatorische Zuständigkeit beim AIO; verantwortliche Personen vor Beginn be
 |Zweck |Platzhalter |Verwendung
 |S3-Schreiben |`https://<s3-endpoint>` |Jenkins/GRETL schreibt mit Credentials in den separat konfigurierten Bucket.
 |Öffentliche Basis |`https://<download-host>/<bucket-pfad>` |Absolute Downloadbasis ohne abschliessenden Slash. Den tatsächlichen öffentlichen Bucket-Pfad bestätigen lassen.
-|Manifest |`https://<download-host>/<bucket-pfad>/current.json` |Jenkins, Editor und Sodata lesen den Bestand; Artefakte liegen relativ dazu.
+|Manifest |`https://<download-host>/<bucket-pfad>/current.json` |Jenkins und Sodata lesen den Bestand; der Editor benötigt die Adresse erst bei einer späteren Reaktivierung des Browser-Quellenimports.
 |Jenkins |`https://<jenkins-host>/` |Anmeldung und Lieferung; entspricht `JENKINS_URL`.
 |Editor |`https://<editor-host>/<editor-prefix>/` |Browseranwendung; Prefix nur bei entsprechender Gateway-Konfiguration.
 |Portal |`https://<portal-host>/` |Öffentliche Sodata-Oberfläche.
 |Reload |`http://<sodata-service>.<namespace>.svc.cluster.local:8080/admin/catalog/reload` |Clusterintern mit Token; keine öffentliche Portaladresse verwenden.
 |===
 
-Im ersten Aufbau verwenden alle technischen Clients – Jenkins/GRETL,
-Datenblatt-Editor und Sodata – dieselbe absolute öffentliche Manifestadresse.
-Sie muss auch aus den Containern erreichbar sein. Eine spätere interne
-Leseadresse muss denselben Bestand liefern; sie ersetzt nicht die
-öffentlichen Downloadadressen. `localhost` im Container bezeichnet dessen
-Netzwerkraum, nicht den administrativen Arbeitsplatz.
+Im ersten Aufbau verwenden Jenkins/GRETL und Sodata dieselbe absolute
+öffentliche Manifestadresse. Sie muss auch aus den Containern erreichbar sein.
+Für eine spätere Reaktivierung des Browser-Quellenimports wird dieselbe
+öffentliche Adresse auch im Editor verwendet. Eine spätere interne Leseadresse
+muss denselben Bestand liefern; sie ersetzt nicht die öffentlichen
+Downloadadressen. `localhost` im Container bezeichnet dessen Netzwerkraum,
+nicht den administrativen Arbeitsplatz.
 
 === Infrastruktur prüfen
 
 . Jenkins benötigt AD mit TLS, Git, S3-Schreibendpoint und Manifest-/Downloadadressen. GRETL muss auch öffentliche Parquet-Adressen beim Erzeugen der DuckDB-Views erreichen können.
-. Sodata benötigt Manifest und referenzierte Artefakte; Browser benötigen Editor, Portal, Datenblattquelle und Downloads.
+. Sodata benötigt Manifest und referenzierte Artefakte; Browser benötigen Editor, Portal und Downloads. Der aktuelle Editor importiert XTF-Dateien lokal; eine öffentliche Datenblattquelle im Browser ist erst bei Reaktivierung des Quellenimports erforderlich.
 . Öffentlichen Lesezugriff und bei fremder Origin CORS für JSON/XTF sowie Parquet-Zugriffe prüfen; Range-Zugriffe für «Erkunden» berücksichtigen.
 . Öffentliche Sperre für `/admin/catalog/**` vor Freigabe sicherstellen, siehe <<sodata>>.
 . Jenkins-Home persistent und beschreibbar bereitstellen. Sicherungsverfahren, Aufbewahrung und Speicherbedarf festhalten.

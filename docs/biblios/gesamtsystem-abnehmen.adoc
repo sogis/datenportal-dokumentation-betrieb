@@ -8,10 +8,10 @@ erwartete fachliche Sichtbarkeit vorab vereinbaren: Dieser Ablauf publiziert Dat
 
 . Image-Versionen, Themenrepo-Revision, Zieladressen und aktuellen `releaseId` protokollieren, ohne Secrets.
 . Mit einem normalen AD-Benutzer ohne Teamzuordnung anmelden: Jenkins-Einstieg möglich, keine Organisationsjobs sichtbar. Ein `read`-Benutzer darf den zugewiesenen Job sehen, aber nicht starten. Ein `build`-Benutzer darf diesen starten, aber nicht konfigurieren. Admin-Konto nicht als Beweis für Teamrechte verwenden.
-. Im Editor ein Datenblatt aus dem Zielbestand öffnen und für die vereinbarte Organisation exportieren. Die Datenblatt-ID muss zum in Jenkins ausgewählten Thema passen; ein anderes Datenblatt wird abgelehnt.
+. Im Editor eine lokale XTF-Datei importieren oder einen neuen Entwurf anlegen, für die vereinbarte Organisation bearbeiten und als XTF exportieren. Die Quellenkarte bleibt deaktiviert; der Browser muss dafür kein `current.json` laden.
 . In Jenkins Organisation und Thema auswählen, «Lieferung verarbeiten» mit dem vorgesehenen Datenblatt und/oder CSV starten. Bei CSV zu einer Serie die Ausgabe angeben. «Portal nach Veröffentlichung neu laden» aktivieren.
 . Build-Ergebnis und `report.json` prüfen: Veröffentlichung angenommen, RDF erfolgreich und Reload erfolgreich. Ein grüner Vorschau-Lauf ohne S3-Freigabe erfüllt diese Abnahme nicht.
-. Manifest öffentlich erneut lesen: neue Generation und alle referenzierten Artefakte erreichbar. Bei einer Metadatenänderung die neue Datenblattsammlung auch im Editor laden.
+. Manifest öffentlich erneut lesen: neue Generation und alle referenzierten Artefakte erreichbar. Die aktuelle Abnahme prüft die neue Datenblattsammlung im Portal; ein erneutes Laden im Editor über den deaktivierten Quellenimport gehört nicht dazu.
 . Portal nachladen und erwartete Einträge, Suche, Details sowie CSV-/XLSX-/Parquet-Downloads prüfen. Nur fachlich freigegebene Inhalte müssen öffentlich erscheinen; `in_review` ist kein Reloadfehler.
 . «Erkunden» öffnen und eine einfache Abfrage auf die gelieferte Parquet-Datei durchführen. In einem bereits offenen Playground zuvor die Seite neu laden; er kann noch den alten DuckDB-Stand halten.
 . Interne Reload-Erreichbarkeit und öffentliche Admin-Pfadsperre gemäss <<sodata>> im Protokoll bestätigen.

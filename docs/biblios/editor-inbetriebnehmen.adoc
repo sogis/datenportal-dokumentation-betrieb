@@ -6,25 +6,28 @@ Plattformbetrieb. Voraussetzung ist der geprüfte Publikationsbestand aus <<boot
 
 === Quelle und Bereitstellung festlegen
 
-. Image-Version mit passender Standardquelle bereitstellen. `VITE_METADATA_SOURCE_URL` wird beim Image-/Frontend-Build gesetzt, beispielsweise auf die absolute öffentliche `current.json`-Adresse. Eine ENV am laufenden NGINX-Container ändert diesen Buildwert nicht.
+. Freigegebene Image-Version bereitstellen. Der GUI-Einstieg zum Laden veröffentlichter Datenblätter ist derzeit deaktiviert. `VITE_METADATA_SOURCE_URL` muss deshalb für den aktuellen Betrieb nicht gesetzt werden. Die technische Unterstützung für `current.json` bleibt im Image erhalten und kann später wieder aktiviert werden; der Buildwert allein aktiviert die GUI-Funktion nicht.
 . Beim Image-Build `VITE_BASE_PATH=./` verwenden. Das Image liefert auf Port 8080 aus. Hinter einem öffentlichen Prefix entfernt das Gateway diesen vor Weiterleitung und setzt den passenden `X-FORWARDED-PREFIX`; NGINX bildet daraus den HTML-Basispfad. Direkt unter `/` ist kein Prefix nötig.
 . Die separate Ämterquelle fachlich prüfen. Die Standardauslieferung enthält `mock-sources/offices.xtf`; sie stammt nicht aus `current.json`. `VITE_OFFICE_CATALOG_URL` ist eine Vite-Buildoption, wird aber derzeit nicht als eigenes Docker-Buildargument angeboten. Eine abweichende Quelle benötigt eine abgestimmte Image-Erstellung.
-. Öffentliche HTTPS-Adresse und bei fremder Herkunft CORS für Manifest und referenzierte XTF bereitstellen lassen. Keine S3-Schlüssel oder Git-Tokens an den Browser geben.
+. Die öffentliche HTTPS-Adresse bleibt für Jenkins und Sodata erforderlich. CORS für Manifest und referenzierte XTF wird erst für eine spätere Reaktivierung des Browser-Quellenimports benötigt. Keine S3-Schlüssel oder Git-Tokens an den Browser geben.
 
 Der Editor benötigt weder Backend noch serverseitige Benutzerkonten. Entwürfe
-und Quelleneinstellungen liegen im Browser. Veröffentlichung erfolgt später
-über eine Dateiübergabe an Jenkins, nicht durch «Speichern» im Editor.
+und lokale Quelleneinstellungen liegen im Browser. In der aktuellen
+Produktionsoberfläche werden Datenblätter über lokale XTF-Dateien importiert
+oder neu angelegt. Veröffentlichung erfolgt später über eine Dateiübergabe an
+Jenkins, nicht durch «Speichern» im Editor.
 
 === Funktionsprüfung
 
 . Öffentliche Editoradresse im Browser öffnen, auch hinter dem vorgesehenen Prefix. Assets und Navigation müssen ohne 404 funktionieren.
-. Im Quellen-Dialog die tatsächlich verwendete Adresse kontrollieren. Eine dort bereits gespeicherte URL hat Vorrang vor dem Builddefault; nach Umstellung ausdrücklich die neue Manifestadresse wählen.
-. Datenblattsammlung laden und einen bekannten Eintrag öffnen; Ämterauswahl prüfen.
-. Einen Entwurf bearbeiten und als XTF exportieren. Nach Neuladen muss der lokale Entwurf weiterhin verfügbar sein.
-. Im Browser-Netzwerkprotokoll erfolgreiche Manifest-/XTF-Abrufe und bei Fehlern CORS prüfen. Geänderte Inhalte unter derselben Remote-URL benötigen keinen neuen Image-Build.
+. Quellenkarte «Metadaten von Quelle laden» als deaktiviert und den Hinweis «Der Quellenimport ist derzeit deaktiviert.» prüfen. Der Button «Quelle öffnen» darf keinen Dialog öffnen.
+. Lokale XTF-Datei importieren, einen bekannten Eintrag öffnen und die Ämterauswahl prüfen.
+. Einen neuen Einzel- oder Serienentwurf anlegen, bearbeiten und als XTF exportieren. Nach Neuladen muss der lokale Entwurf weiterhin verfügbar sein.
+. Im Browser-Netzwerkprotokoll prüfen, dass Assets und die lokalen Import-/Exportvorgänge ohne Fehler funktionieren. Für die aktuell deaktivierte Quellenkarte ist kein Manifestabruf aus dem Browser zu erwarten.
 
-Ergebnis: Der Editor liest den produktiven Bestand und erzeugt eine lokal
-verfügbare Lieferdatei. Bei falscher Quelle diese im Dialog korrigieren;
+Ergebnis: Der Editor ist erreichbar, der Quellenimport im GUI bleibt bewusst
+deaktiviert und der Editor erzeugt lokal verfügbare Lieferdateien. Die
+Manifestunterstützung bleibt für eine spätere Reaktivierung vorbereitet.
 Browserdaten nicht zur Reparatur löschen, da dadurch Entwürfe verloren gehen.
 Serverbackups sichern diese Entwürfe nicht. Wichtige Arbeitsstände exportieren.
 

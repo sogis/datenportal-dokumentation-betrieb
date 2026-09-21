@@ -25,7 +25,7 @@ sperren; nach Reparatur Jobzustand ausdrücklich prüfen, nicht nur den Seed-Sta
 . Neue Images kontrolliert bereitstellen, bei Jenkins mit persistentem Home. Änderungen an eingebauter JCasC benötigen ein neues Image oder eine bewusst extern bereitgestellte JCasC.
 . ENV-Änderungen durch neue Pods übernehmen. Änderungen an Repository-URL/Branch benötigen anschliessend einen Seed.
 . Bei alten Manifesten ohne DuckDB zuerst Publisher aktualisieren und regulär publizieren; danach Sodata mit DuckDB-Manifestmodus starten. Keine Neuinitialisierung durch Löschen von `current.json`.
-. Health, Anmeldung, Jobrechte, Quelle und eine angemessene Funktionsprüfung wiederholen. Beim Editor gespeicherte Browser-Quellen separat beachten.
+. Health, Anmeldung, Jobrechte und die lokalen Editor-Funktionen (XTF-Import, Entwurf und Export) wiederholen. Der Browser-Quellenimport bleibt deaktiviert; gespeicherte Quelleneinstellungen werden erst bei einer späteren Reaktivierung relevant.
 
 === Secrets wechseln
 

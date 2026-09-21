@@ -6,10 +6,12 @@ Zugängen bis zur ersten geprüften Veröffentlichung. S3-Dienst und Bucket sind
 bereits eingerichtet. Anwendungsentwicklung, Garage-Installation und fachliche
 Datenaufbereitung werden in den jeweiligen Dokumentationen behandelt.
 
-Der Editor lädt Datenblätter, bearbeitet sie im Browser und exportiert eine
-Datei. Eine berechtigte Person übergibt diese und gegebenenfalls CSV-Daten über
-Jenkins. Jenkins validiert und veröffentlicht den Bestand. Sodata lädt ihn beim
-Start oder Reload und stellt Katalog, Downloads und «Erkunden» bereit.
+Der Editor importiert derzeit lokale XTF-Dateien oder legt neue Datenblätter an,
+bearbeitet sie im Browser und exportiert eine Datei. Eine berechtigte Person
+übergibt diese und gegebenenfalls CSV-Daten über Jenkins. Jenkins validiert und
+veröffentlicht den Bestand. Sodata lädt ihn beim Start oder Reload und stellt
+Katalog, Downloads und «Erkunden» bereit. Der technische Browser-Import über
+`current.json` bleibt vorbereitet, ist im GUI aber deaktiviert.
 
 [cols="1,3",options="header"]
 |===
