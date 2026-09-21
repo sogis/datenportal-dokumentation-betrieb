@@ -1,0 +1,27 @@
+:lang: de
+:imagesdir: images
+:example-caption!:
+:table-caption: Tabelle
+:figure-caption: Abbildung
+:note-caption: Hinweis
+:tip-caption: Tipp
+:xrefstyle: full
+:chapter-refsig: Kapitel
+:section-refsig: Kapitel
+:doctype: book
+:revdate: {localdate}
+:author: Amt für Geoinformation Kanton Solothurn
+:toc:
+:toclevels: 2
+
+= Betrieb Datenportal
+
+include::ueberblick.adoc[]
+include::voraussetzungen.adoc[]
+include::jenkins-inbetriebnehmen.adoc[]
+include::publikationsbestand-initialisieren.adoc[]
+include::editor-inbetriebnehmen.adoc[]
+include::sodata-inbetriebnehmen.adoc[]
+include::gesamtsystem-abnehmen.adoc[]
+include::laufender-betrieb.adoc[]
+include::stoerungen-beheben.adoc[]

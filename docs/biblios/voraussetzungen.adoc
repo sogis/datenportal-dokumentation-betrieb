@@ -1,0 +1,55 @@
+[[voraussetzungen]]
+== Voraussetzungen und Übergaben klären
+
+Zuständig sind Plattformbetrieb, Anwendungsbetrieb und fachliche Administration.
+Ergebnis ist eine ausgefüllte Übergabeliste. Diese Rollen bestimmen keine
+organisatorische Zuständigkeit beim AIO; verantwortliche Personen vor Beginn benennen.
+
+[cols="1,3",options="header"]
+|===
+|Rolle |Übergabe
+|Plattformbetrieb |Namespace, Deployments, Services, Routen/Gateway, Zertifikate, Netzwerk, persistenter Jenkins-Speicher und Secret-Bereitstellung.
+|Anwendungsbetrieb |Image-Versionen, JCasC und Anwendungswerte, Jenkins-Credentials, Bootstrap, Reload, technische Abnahme und Wiederherstellung.
+|Fachliche Administration |Gültiges Themenrepo, Teams, Datenherr-Katalog, zulässige Testlieferung und erwartete öffentliche Sichtbarkeit.
+|===
+
+=== Angaben vor Beginn erfassen
+
+. Namespace sowie Deployment-, Service- und Container-Namen erfassen. `oc` wird auf einem administrativen Arbeitsplatz mit Namespace-Zugriff ausgeführt.
+. Feste freigegebene Tags oder Digests für `sogis/datenportal-jenkins`, `sogis/datenportal-datenblatt-editor` und `sogis/datenportal-sodata` festlegen; Versionen auf das Themenrepo abstimmen.
+. AD-Domain, Server, Bind-Identität, Passwort und Vertrauenskette beschaffen; Benutzer-ID des Administrators bestätigen.
+. Git-URL, Branch und gegebenenfalls Token beschaffen. Lesen und Rückschreiben getrennt freigeben.
+. Bucket-Name, S3-Endpoint, Region, Schreibzugang und öffentliche Basisadresse vom Speicherbetrieb übernehmen.
+. Secret-Namen und Übergabewege für AD, Git, S3 und Reload festlegen. Keine Secret-Werte in Git oder Protokolle schreiben.
+
+=== Gemeinsame Adresstabelle ausfüllen
+
+[cols="1,2,3",options="header"]
+|===
+|Zweck |Platzhalter |Verwendung
+|S3-Schreiben |`https://<s3-endpoint>` |Jenkins/GRETL schreibt mit Credentials in den separat konfigurierten Bucket.
+|Öffentliche Basis |`https://<download-host>/<bucket-pfad>` |Absolute Downloadbasis ohne abschliessenden Slash. Den tatsächlichen öffentlichen Bucket-Pfad bestätigen lassen.
+|Manifest |`https://<download-host>/<bucket-pfad>/current.json` |Jenkins, Editor und Sodata lesen den Bestand; Artefakte liegen relativ dazu.
+|Jenkins |`https://<jenkins-host>/` |Anmeldung und Lieferung; entspricht `JENKINS_URL`.
+|Editor |`https://<editor-host>/<editor-prefix>/` |Browseranwendung; Prefix nur bei entsprechender Gateway-Konfiguration.
+|Portal |`https://<portal-host>/` |Öffentliche Sodata-Oberfläche.
+|Reload |`http://<sodata-service>.<namespace>.svc.cluster.local:8080/admin/catalog/reload` |Clusterintern mit Token; keine öffentliche Portaladresse verwenden.
+|===
+
+Im ersten Aufbau verwenden alle technischen Clients – Jenkins/GRETL,
+Datenblatt-Editor und Sodata – dieselbe absolute öffentliche Manifestadresse.
+Sie muss auch aus den Containern erreichbar sein. Eine spätere interne
+Leseadresse muss denselben Bestand liefern; sie ersetzt nicht die
+öffentlichen Downloadadressen. `localhost` im Container bezeichnet dessen
+Netzwerkraum, nicht den administrativen Arbeitsplatz.
+
+=== Infrastruktur prüfen
+
+. Jenkins benötigt AD mit TLS, Git, S3-Schreibendpoint und Manifest-/Downloadadressen. GRETL muss auch öffentliche Parquet-Adressen beim Erzeugen der DuckDB-Views erreichen können.
+. Sodata benötigt Manifest und referenzierte Artefakte; Browser benötigen Editor, Portal, Datenblattquelle und Downloads.
+. Öffentlichen Lesezugriff und bei fremder Origin CORS für JSON/XTF sowie Parquet-Zugriffe prüfen; Range-Zugriffe für «Erkunden» berücksichtigen.
+. Öffentliche Sperre für `/admin/catalog/**` vor Freigabe sicherstellen, siehe <<sodata>>.
+. Jenkins-Home persistent und beschreibbar bereitstellen. Sicherungsverfahren, Aufbewahrung und Speicherbedarf festhalten.
+
+Fehlende Zugänge oder ungeklärte Zieladressen vor dem jeweiligen Folgeschritt
+beheben. Keine Dev-Adressen als Ersatz in produktive Artefakte übernehmen.

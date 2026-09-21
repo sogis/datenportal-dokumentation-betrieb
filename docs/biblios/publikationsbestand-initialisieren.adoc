@@ -1,0 +1,97 @@
+[[bootstrap]]
+== Publikationsbestand initialisieren
+
+Zuständig: Anwendungsbetrieb mit fachlicher Administration. Voraussetzung sind
+ein erfolgreicher Seed, gültige Datenblätter und `shared/data/offices.xtf` sowie
+die geprüften Zieladressen und S3-Zugänge. Eine der folgenden Varianten wählen.
+Für einen neuen Bestand ist die Initialisierung im Jenkins-Container der
+Standardweg. Die manuelle Übernahme setzt bereits geeignete Artefakte voraus.
+
+=== Gemeinsame Vorbereitung
+
+. In Jenkins das Herunterfahren vorbereiten (Quiet Down), damit keine neuen Builds starten. Alle laufenden Builds vollständig beenden lassen; Jenkins selbst bleibt aktiv. Auch externe Publisher müssen pausieren.
+. Absolute öffentliche Basis und Manifestadresse kontrollieren. Für die öffentliche Basis muss `ORG_GRADLE_PROJECT_catalogDownloadBase` gesetzt sein. Späteres Umstellen nur von Sodata repariert keine gespeicherten DuckDB-URLs.
+. Am administrativen Arbeitsplatz die Manifestadresse prüfen:
+
+[source,bash]
+----
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  'https://<download-host>/<bucket-pfad>/current.json'
+----
+
+Nur HTTP 404 erlaubt Erstinitialisierung. 403, TLS-/Netzfehler oder Serverfehler
+zuerst beheben. Existiert der Verweis bereits, keine Neuinitialisierung und kein
+Löschen als Reparaturversuch: siehe <<betrieb>> und <<stoerungen>>.
+
+=== Variante A: Im Jenkins-Container initialisieren
+
+Den folgenden Befehl am administrativen Arbeitsplatz ausführen; Namespace, Pod
+und Container aus der Übergabeliste einsetzen. Er erstellt eine neue beschreibbare
+Kopie des Seeder-Checkouts, damit dieser nicht als Buildverzeichnis verwendet wird.
+
+[source,bash]
+----
+oc -n '<namespace>' exec -i '<jenkins-pod>' -c '<jenkins-container>' -- bash -s <<'SH'
+set -euo pipefail
+: "${ORG_GRADLE_PROJECT_publicationManifestUrl:?Manifestadresse fehlt}"
+: "${ORG_GRADLE_PROJECT_catalogDownloadBase:?Oeffentliche Downloadbasis fehlt}"
+publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
+tar -C /var/jenkins_home/gretl-datenportal/topic-repo \
+  --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
+  -cf - . | tar -C "$publication_init_dir" -xf -
+cd "$publication_init_dir"
+./shared/bin/gradlew-java17.sh --no-daemon \
+  -I "$PWD/shared/gradle/init.gradle" initializePublication \
+  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false
+printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
+SH
+----
+
+Für Docker denselben Block verwenden und nur die erste Zeile ersetzen durch:
+
+[source,bash]
+----
+docker exec -i '<jenkins-container>' bash -s <<'SH'
+----
+
+Die Docker-Zeile ist kein eigenständiger vollständiger Befehl; der Block bis
+einschliesslich `SH` gehört dazu. Die gleiche Containerkonfiguration muss vorliegen.
+
+Java, Offline-Bundle und Secrets kommen aus der vorhandenen Laufzeit. Kein
+`--offline` ergänzen, weil der Ablauf HTTP-Abfragen benötigt. Der explizite
+Parameter `s3Publish=true` gibt diesen administrativen Upload auch dann frei,
+wenn normale Jobs auf Vorschau stehen. Git und Portal werden nicht aktualisiert.
+Der direkte Aufruf nimmt den Jenkins-Job-Lock nicht automatisch; deshalb die Pause.
+
+Die Arbeitskopie bleibt für Diagnose erhalten. Im ausgegebenen Verzeichnis
+`report.json` prüfen und Pfad sowie `releaseId` protokollieren. Ohne initialen
+Katalog entsteht `catalog: null`, aber eine gültige leere DuckDB und eine
+Datenblattsammlung. Das ist ein zulässiger Anfangszustand vor der ersten Lieferung.
+
+Eine Übernahme eines bisherigen PublishedCatalog kann ausdrücklich über
+`-PinitialCatalog=<absoluter-containerpfad-zur-xtf>` erfolgen. Diese Datei muss
+vorher bereitgestellt und ihre referenzierten Downloads müssen am Ziel vorhanden
+sein. Ein Katalog allein migriert keine Lieferdateien.
+
+=== Variante B: Vorbereiteten Bestand manuell übernehmen
+
+. Einen konsistenten Export eines angehaltenen Publishers bereitstellen und seine Manifestgeneration protokollieren. Zulässigkeit der Inhalte für Produktion fachlich bestätigen lassen.
+. Manifest und alle referenzierten Dateien zusammenstellen: `datasheets-<releaseId>.xtf`, `catalog-<releaseId>.duckdb`, bei nichtleerem `catalog` zusätzlich `published-catalog-<releaseId>.xtf`. Zugehörige CSV-/XLSX-/Parquet-Dateien und `opendata.rdf` gehören ebenfalls dazu, soweit vorhanden bzw. vorgesehen.
+. Download-URLs im Katalog und in den DuckDB-Viewdefinitionen prüfen. Ein Dev-Bestand mit localhost- oder internen Dev-Adressen ist ungeeignet. Artefakte für die Zielbasis neu erzeugen; blosser Austausch der Manifest-URL reicht nicht. Auch ein leerer Bestand benötigt eine gültige DuckDB mit leerem `opendata`-Schema.
+. Mit dem vom Speicherbetrieb bereitgestellten Uploadwerkzeug zuerst Downloads und referenzierte Artefakte unter den exakten Objektnamen übertragen, dazu den passenden RDF-Export. Keine vorhandenen produktiven Objekte ungeprüft überschreiben.
+. Alle Dateien über die öffentliche Zieladresse rücklesen und gegen den Export prüfen. Erst danach `current.json` unverändert mit seinen relativen Dateinamen übertragen. Keine absoluten URLs in die Manifest-Dateifelder einsetzen.
+
+Das Uploadwerkzeug und dessen Anmeldung sind Teil der bestehenden S3-Betriebsumgebung;
+diese Anleitung legt dafür keine Garage-Administration oder neuen Zugang an.
+
+=== Ergebnis prüfen und freigeben
+
+. `current.json` öffentlich abrufen. `schemaVersion`, `releaseId`, `datasheets`, `catalog` und `duckdb` prüfen; Dateinamen müssen zur Generation passen.
+. Jede referenzierte Datei relativ zur Manifestadresse ohne Anmeldung abrufen; `catalog: null` wird dabei übersprungen. Dateiinhalte bzw. Prüfsummen mit den erzeugten oder übernommenen Artefakten vergleichen.
+. `opendata.rdf` abrufen und auf passenden Inhalt prüfen; ohne Katalog ist ein leerer RDF-Katalog beabsichtigt.
+. Bei vorhandenen Daten Downloads und deren Zieladressen prüfen. Editor und Sodata im Anschluss gegen diese Quelle starten.
+. Quiet Down erst nach abgeschlossener Prüfung beenden. Bis zur Gesamtabnahme keine unkontrollierten Lieferungen zulassen.
+
+Bei Abbruch zuerst Manifest und Bericht prüfen: Eine rote Ausführung kann nach
+bereits übernommener Veröffentlichung auftreten. Bei vorhandenem Manifest den
+Initialisierungsbefehl nicht erneut ausführen. Fehlerdiagnose unter <<stoerungen>>.

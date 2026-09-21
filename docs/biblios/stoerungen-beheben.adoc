@@ -1,0 +1,34 @@
+[[stoerungen]]
+== Störungen beheben
+
+Zuständig: Anwendungsbetrieb als erste Diagnose, danach Übergabe an die
+betroffene Rolle. Vor Wiederholungen Buildnummer, Zeitpunkt, Image-Version,
+Manifestgeneration und Fehlertext ohne Secrets festhalten.
+
+[cols="2,3,3",options="header"]
+|===
+|Symptom |Prüfen und handeln |Erfolgskontrolle
+|Jenkins startet nicht |Startup-Log: Pflicht-ENV, JCasC, Volume-Rechte und Zertifikate. Mit Plattformbetrieb fehlende Angaben korrigieren und Pod erneuern. |Jenkins erreichbar, Admin-Anmeldung möglich.
+|AD-Anmeldung scheitert |AD-Erreichbarkeit, TLS-Vertrauen, Bind-Zugang und persönliches Konto prüfen. Technischer Bind-User ersetzt keinen persönlichen Login. |Login mit vorgesehenem AD-Konto.
+|Login geht, Job fehlt |Jenkins-Benutzer-ID, Teams, Organisationsberechtigung und letzten erfolgreichen Seed prüfen. Änderungen committen und neu seeden. |Prüfung mit betroffenem normalen Benutzer, nicht Admin.
+|Seed schlägt fehl |Seed-Log: Git-URL/Branch/Credential oder YAML-Validierung. Fehler im richtigen Branch korrigieren und Lauf wiederholen; gesperrte Jobs danach ausdrücklich kontrollieren. |Seed erfolgreich, Jobs vorhanden und startbar für Berechtigte.
+|Initialisierung scheitert |Manifeststatus und `report.json` der Arbeitskopie prüfen. 403/Netzfehler sind keine leere Umgebung. Bei vorhandenem Manifest nicht erneut initialisieren. |Konsistenter öffentlich lesbarer Bestand oder geklärter Fehler ohne weitere Schreibversuche.
+|Editor zeigt falsche Quelle |Gespeicherte URL im Quellen-Dialog hat Vorrang. Dort korrigieren, JSON/XTF und CORS prüfen; keine Browserdaten löschen. |Bekannte Datenblätter aus dem Zielbestand sichtbar.
+|Falsches Datenblatt abgelehnt |Ausgewählte Organisation/Thema mit Datenblatt-ID vergleichen; korrekte Datei exportieren. Keine Validierung umgehen. |Richtige Datei wird angenommen.
+|Sodata startet nicht |Quelle, Manifestvertrag, XTF-/DuckDB-Dateien, Netz und Logs prüfen. Alte Manifeste ohne DuckDB benötigen Publisher-Übergang gemäss <<betrieb>>. |Readiness erfolgreich, korrekte Quelle geladen.
+|Portal leer |`catalog: null` oder noch keine fachlich freigegebenen Einträge? Das kann korrekt sein. Fehlende referenzierte Datei ist dagegen ein Fehler. |Erwartete fachliche Sicht mit Status und Quelle abgeglichen.
+|Build rot, Daten bereits veröffentlicht |Teilstatus in `report.json`, aktuelles Manifest, RDF und Reloadantwort prüfen. S3-Annahme kann vor RDF-/Reloadfehler erfolgt sein. Lieferung nicht blind wiederholen. |Angenommenen Stand bestätigt und nur fehlgeschlagenen Folgeschritt gezielt behoben.
+|Portal veraltet |Reload angefordert? S3-Freigabe aktiv? Interne Adresse, Secret auf beiden Seiten und Reloadbericht prüfen. Nach Behebung internen Reload aus <<sodata>> ausführen. |HTTP 200 mit `success: true` und erwarteter Portalinhalt.
+|Reload 401/503 |401: fehlendes/falsches Token; 503: bei unkonfiguriertem Token Admin-Endpunkt deaktiviert, weitere Ursachen über Antwort und Logs prüfen. |Authentisierter interner Status-/Reloadaufruf erfolgreich.
+|«Erkunden» oder Downloads scheitern |Gespeicherte URLs, öffentliche Erreichbarkeit, CORS/Range und DuckDB-Generation prüfen. Playground neu laden. Sodata kann falsche View-URLs nicht reparieren. |Download und einfache Parquet-Abfrage erfolgreich.
+|===
+
+Bei unklarem Publikationsstatus zuerst `current.json` und referenzierte Artefakte
+rücklesen und mit dem Jobbericht vergleichen. Ein unbekanntes Ergebnis ist weder
+eine bestätigte Rücknahme noch eine Einladung zur Neuinitialisierung.
+
+Offene Produktionspunkte dieses ersten Wurfs sind konkrete Domains und
+Namespaces, Gateway-Regeln, Ressourcen-/Probe-Grenzwerte, Sicherungsziele und
+ein allfälliger Mehrreplikatbetrieb. Diese Angaben im Inbetriebnahmeprotokoll
+vervollständigen. Die Schritte wurden anhand der Komponentenquellen beschrieben;
+produktive AD-, OpenShift- und S3-Funktionstests sind durch die Abnahme nachzuweisen.

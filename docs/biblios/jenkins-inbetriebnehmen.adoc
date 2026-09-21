@@ -1,0 +1,167 @@
+[[jenkins]]
+== Jenkins in Betrieb nehmen
+
+Zuständig: Anwendungsbetrieb; Deployment, Speicher und Netz durch Plattformbetrieb.
+Voraussetzung ist die ausgefüllte Liste aus <<voraussetzungen>>.
+
+=== Produktionskonfiguration bereitstellen
+
+. Freigegebenes Jenkins-Image einsetzen und `/var/jenkins_home` persistent bereitstellen. Das Image enthält Jenkins, Plugin und die benötigte GRETL-Laufzeit.
+. Die nachfolgende Konfiguration am Jenkins-Container bereitstellen. Nichtgeheime Werte kommen aus der Deployment-Konfiguration/ConfigMap, geheime Werte aus Secrets.
+. AD-Truststore einschliesslich notwendiger Zertifikate bereitstellen. Eigene JVM-Optionen müssen `-Djenkins.install.runSetupWizard=false` erhalten.
+
+[cols="2,3",options="header"]
+|===
+|Einstellung |Wert und Begründung
+|`JENKINS_RUNTIME_MODE` |`production`; aktiviert die Produktions-Pflichtprüfungen. Ist im Image voreingestellt.
+|`CASC_JENKINS_CONFIG` |Image-Default `/usr/share/jenkins/ref/casc_configs/jenkins.yaml`. Enthält Produktions-JCasC aus `datenportal-jenkins-dev/casc/jenkins-production.yaml`. Der Laufzeitmodus wählt diese Datei nicht selbst aus. Für Produktion besser die vollständige `jenkins.yaml` aus einem Secret read-only mounten und `CASC_JENKINS_CONFIG` auf den Mount-Pfad setzen, beispielsweise `/etc/jenkins/casc/jenkins.yaml`. So können direkte Benutzer-Einträge wie der Jenkins-Administrator geändert werden, ohne das Image neu zu bauen; danach ist ein Rollout bzw. Neustart erforderlich.
+|`JENKINS_URL`, `JENKINS_ADMIN_ADDRESS` |Öffentliche Jenkins-URL und administrative Kontaktadresse; beide erforderlich.
+|`AD_DOMAIN`, `AD_SERVERS`, `AD_BIND_NAME` |AIO-Angaben zu Domain, Servern und technischem Bind-Konto.
+|`AD_BIND_PASSWORD` |Secret für AD-Abfragen. Persönliche Benutzer melden sich mit ihren eigenen AD-Konten an.
+|`THEMEN_REPO_URL`, `THEMEN_REPO_BRANCH` |HTTPS-Git-URL ohne eingebettete Credentials und freigegebener Branch, normalerweise `main`. Produktion verwendet `managed-git`, also den committed Remote-Stand.
+|`THEMEN_REPO_CREDENTIALS_ID` |Bei privatem Git: ID eines bereits in Jenkins bereitgestellten Credentials vom Typ «Username with password». Das Passwortfeld enthält das Git-Token. Die Variable allein legt kein Credential an.
+|===
+
+=== Git-Credential für ein privates Themenrepo bereitstellen
+
+`THEMEN_REPO_CREDENTIALS_ID` ist nur eine Referenz auf ein Jenkins-Credential.
+Damit Jenkins das Credential für HTTPS-Git verwenden kann, muss es bereits mit
+genau dieser ID existieren. Der erwartete Credential-Typ ist «Username with
+password» (`usernamePassword` in JCasC). Das Git-Token kommt in das
+Passwortfeld; ein Credential vom Typ «Secret text» ist für diesen Checkout
+nicht ausreichend.
+
+Die JCasC-Definition steht auf der obersten YAML-Ebene, neben `jenkins`,
+`unclassified` und `tool`. Beispiel mit der ID `themenrepo-git`:
+
+[source,yaml]
+----
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              id: "themenrepo-git"
+              description: "HTTPS-Zugang zum Themenrepo"
+              username: "${THEMEN_REPO_GIT_USERNAME}"
+              password: "${THEMEN_REPO_GIT_TOKEN}"
+----
+
+Die Referenz in der Produktions-JCasC und die Umgebungsvariable müssen dieselbe
+ID verwenden:
+
+[source,text]
+----
+THEMEN_REPO_CREDENTIALS_ID=themenrepo-git
+----
+
+Ein OpenShift-Secret mit den Schlüsseln `username` und `password` wird nicht
+automatisch zu einem Jenkins-Credential. Empfohlen ist die Trennung in zwei
+Secrets:
+
+* Ein Secret `jenkins-production-jcasc` enthält die vollständige
+  `jenkins.yaml`. Diese Datei wird read-only gemountet und über
+  `CASC_JENKINS_CONFIG` aktiviert.
+* Ein separates Secret `themenrepo-git` enthält den Git-Benutzernamen und das
+  Git-Token. Beide Werte werden als Umgebungsvariablen an den Jenkins-Container
+  übergeben und von der JCasC per `${THEMEN_REPO_GIT_USERNAME}` bzw.
+  `${THEMEN_REPO_GIT_TOKEN}` eingesetzt.
+
+Ein schematischer Deployment-Ausschnitt sieht so aus:
+
+[source,yaml]
+----
+env:
+  - name: CASC_JENKINS_CONFIG
+    value: /etc/jenkins/casc/jenkins.yaml
+  - name: THEMEN_REPO_CREDENTIALS_ID
+    value: themenrepo-git
+  - name: THEMEN_REPO_GIT_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: themenrepo-git
+        key: username
+  - name: THEMEN_REPO_GIT_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: themenrepo-git
+        key: token
+volumeMounts:
+  - name: jenkins-jcasc
+    mountPath: /etc/jenkins/casc
+    readOnly: true
+volumes:
+  - name: jenkins-jcasc
+    secret:
+      secretName: jenkins-production-jcasc
+----
+
+Der Schlüssel `jenkins.yaml` des JCasC-Secrets muss dabei unter
+`/etc/jenkins/casc/jenkins.yaml` gemountet werden. Die konkreten Secret-Namen
+und Schlüssel sind Platzhalter und müssen mit dem Deployment abgestimmt werden.
+Secret-Werte gehören nicht ins Git-Repository. Nach einer Änderung am JCasC-
+oder Git-Secret ist ein Rollout beziehungsweise Neustart erforderlich, damit
+Jenkins die Werte und die Konfiguration neu lädt. Ein Image-Neubau ist dafür
+nicht nötig.
+
+Alternativ kann das Credential nach der Anmeldung als `bjsvwzie` manuell in
+Jenkins angelegt werden: *Jenkins verwalten* → *Credentials* → *System* →
+*Global credentials* → *Add Credentials*. Als Typ «Username with password»,
+als ID exakt `themenrepo-git`, als Benutzername die Git-Identität und als
+Passwort das Git-Token eintragen. Danach muss `THEMEN_REPO_CREDENTIALS_ID`
+auf `themenrepo-git` zeigen.
+
+Vor dem Erst-Seed prüfen:
+
+. Im Startup-Log kontrollieren, dass die gemountete JCasC geladen wurde und
+  keine unbekannte oder fehlende Credential-ID gemeldet wird. Das Token darf
+  nicht im Log erscheinen.
+. Mit der ID `themenrepo-git` einen Checkout des privaten Themenrepos oder den
+  Job `gretl-datenportal-seed` ausführen.
+. Bei fehlendem Credential erscheint im Jenkins-Log sinngemäss
+  `Git HTTPS credential not found: <id>`. Dann zuerst ID, Credential-Typ,
+  Secret-Referenzen und Rollout prüfen; den Seed erst danach erneut starten.
+
+Falls der automatische Erstlauf vor der Credential-Bereitstellung scheitert,
+nach der Korrektur den Seed als Administrator manuell erneut starten.
+
+=== Publikation konfigurieren
+
+Die folgenden Variablen werden vom tatsächlich ausführenden GRETL-Prozess gelesen.
+Im gegenwärtigen Ablauf ist dies der Jenkins-Controller. Eine spätere Ausführung
+in separaten Agenten benötigt die Werte dort ebenfalls.
+
+[cols="2,3",options="header"]
+|===
+|Einstellung |Wert und Wirkung
+|`ORG_GRADLE_PROJECT_publicationManifestUrl` |Absolute Manifestadresse aus <<voraussetzungen>>. Eingang normaler Lieferungen und Kontrolladresse bei Initialisierung.
+|`ORG_GRADLE_PROJECT_catalogDownloadBase` |Absolute öffentliche Bucket-/Downloadbasis. Explizit setzen, damit keine unpassende Vorgabe aus dem Themenrepo übernommen wird; diese Adresse gelangt auch in DuckDB-Views.
+|`ORG_GRADLE_PROJECT_s3Endpoint`, `ORG_GRADLE_PROJECT_s3Region`, `ORG_GRADLE_PROJECT_s3BucketName` |S3-Schreibendpoint, bestätigte Region und Bucket-Name vom Speicherbetrieb.
+|`ORG_GRADLE_PROJECT_s3AccessKey`, `ORG_GRADLE_PROJECT_s3SecretKey` |Secrets für den Schreibzugang.
+|`ORG_GRADLE_PROJECT_s3Acl` |Nur nach Vorgabe des Speicherbetriebs setzen; Default `private`. Öffentliche Lesbarkeit über den vereinbarten Auslieferungsweg separat prüfen.
+|`ORG_GRADLE_PROJECT_s3Publish` |`true` für reguläre Veröffentlichung. Ohne Freigabe bleibt die Verarbeitung Vorschau; dabei erfolgt auch kein Reload oder Git-Rückschreiben.
+|`THEMEN_REPO_WRITE_BACK_ENABLED` |Zunächst `false`. Für gewünschtes Git-Rückschreiben ausdrücklich `true` und schreibfähiges Git-Credential bereitstellen.
+|`THEMEN_REPO_COMMITTER_NAME`, `THEMEN_REPO_COMMITTER_EMAIL` |Bei Rückschreiben erforderliche technische Commit-Identität; keine Login-Daten.
+|===
+
+Reload-Adresse und Token werden in <<sodata>> ergänzt, bevor der erste Lieferlauf
+mit Reload abgenommen wird. Änderungen an Container-ENV erfordern neue Pods bzw.
+Container; ein unveränderter Prozess übernimmt sie nicht.
+
+=== Anmeldung und Seed prüfen
+
+. Deployment starten; Startup-Log auf fehlende Pflichtwerte, JCasC- und TLS-Fehler prüfen.
+. Als `bjsvwzie` über AD anmelden und Jenkins-Administration öffnen. Dieser Benutzer erhält direkt `Overall/Administer`; weitere Administratoren werden als zusätzliche `user`-Einträge in der Produktions-JCasC gepflegt.
+. Ein normaler AD-Benutzer erhält über Jenkins' eingebauten Prinzipal `authenticated` nur `Overall/Read`. Dafür sind keine AIO-Gruppen und keine Gruppen-ENV-Variablen nötig. Anonymer Zugriff wird dadurch nicht freigegeben.
+. Job `gretl-datenportal-seed` prüfen: Das Plugin erstellt ihn und plant bei konfiguriertem Repository einen ersten Lauf, sofern noch kein Lauf existiert. Danach läuft er über `H/15 * * * *` alle 15 Minuten; nicht bei jedem Neustart zusätzlich sofort.
+. Erfolgreichen Seed und erwartete Organisationsjobs prüfen. Der Checkout liegt unter `/var/jenkins_home/gretl-datenportal/topic-repo`. Bei Fehlern Ursache beheben und als Administrator manuell starten oder den Timer abwarten.
+. Mit einem normalen Testbenutzer prüfen: Nur zugewiesene Jobs sichtbar; `read` erlaubt Lesen, `build` auch Starten. Benutzer-IDs in `shared/gretl-datenportal-teams.yaml` müssen zur Jenkins-Identität passen. Das Seeder-Team erhält nach erfolgreicher Synchronisation Lese-/Startrechte auf den Seeder, keine Administration.
+
+Ergebnis: Jenkins ist erreichbar, AD funktioniert, Seed ist erfolgreich und
+die Jobs sind korrekt berechtigt. Noch keine Lieferjobs starten: Der
+Publikationsbestand wird im nächsten Kapitel initialisiert.
+
+Bei AD-Ausfall bietet diese Konfiguration keinen lokalen Notfall-Login.
+Wiederherstellung der Anbindung ist mit dem Plattformbetrieb zu koordinieren.
+Details zur Laufzeit stehen in der
+https://codeberg.org/edigonzales/datenportal-jenkins-dev/src/branch/main/docs/biblios/entwicklung/referenz-konfiguration.adoc[Jenkins-Konfigurationsreferenz].

@@ -1,0 +1,49 @@
+[[betrieb]]
+== Laufender Betrieb und Wiederanlauf
+
+Zuständig: Anwendungsbetrieb, bei fachlichen Änderungen mit fachlicher
+Administration. Vor jedem Eingriff Ziel, Konfigurationsstand und erwartetes
+Ergebnis festhalten. Bei bestandsverändernden Wartungen Lieferungen pausieren
+und laufende Builds abwarten.
+
+=== Teams, Themen und Datenblätter ändern
+
+. Teamzuordnungen oder Themenstruktur im freigegebenen Git-Branch ändern und bereitstellen.
+. Seed abwarten oder manuell starten; erfolgreichen Lauf und Sicht-/Startrechte mit normalem Benutzer prüfen. Ein Commit allein aktualisiert die Jenkins-ACLs nicht.
+. Für neue Pipeline-/Jobdefinitionen oder Pluginänderungen ebenfalls neu seeden. Nach Pluginänderungen zuerst Jenkins mit dem passenden Image neu starten.
+. Für reine fachliche Übernahme eines Repository-Datenblatts den Modus «Datenblatt aus Repository übernehmen» im Organisationsjob verwenden, ohne Upload. Bei geändertem Job-/Themenkontext zuvor seeden. Ein Seed allein übernimmt die Metadaten nicht in S3.
+. Veröffentlichung und gegebenenfalls angeforderten Reload prüfen. Ein Metadatenabgleich erhält angenommene Lieferdaten; ID- oder Dataset/Serie-Typänderungen als separate Migration behandeln.
+
+Das Seeder-Team darf den Seeder starten; globale Administratoren werden direkt
+in der Produktions-JCasC gepflegt. Administratoren nicht über Teams vergeben.
+Ungültige Teams-/Berechtigungskonfiguration kann verwaltete Organisationsjobs
+sperren; nach Reparatur Jobzustand ausdrücklich prüfen, nicht nur den Seed-Status.
+
+=== Images und Konfiguration aktualisieren
+
+. Bisherige Image-Digests, Konfiguration und Sicherung erfassen; Verträge zwischen Publisher, Manifest und Sodata prüfen.
+. Neue Images kontrolliert bereitstellen, bei Jenkins mit persistentem Home. Änderungen an eingebauter JCasC benötigen ein neues Image oder eine bewusst extern bereitgestellte JCasC.
+. ENV-Änderungen durch neue Pods übernehmen. Änderungen an Repository-URL/Branch benötigen anschliessend einen Seed.
+. Bei alten Manifesten ohne DuckDB zuerst Publisher aktualisieren und regulär publizieren; danach Sodata mit DuckDB-Manifestmodus starten. Keine Neuinitialisierung durch Löschen von `current.json`.
+. Health, Anmeldung, Jobrechte, Quelle und eine angemessene Funktionsprüfung wiederholen. Beim Editor gespeicherte Browser-Quellen separat beachten.
+
+=== Secrets wechseln
+
+. AD-/S3-/Git-Zugänge mit dem jeweiligen Betreiber erneuern und die betroffenen Secret-Referenzen bzw. Jenkins-Credentials aktualisieren.
+. Reload-Secret auf beiden Seiten koordiniert wechseln; während des Übergangs keine Lieferung mit Reload starten. Die Anwendung verwendet ein konfiguriertes Token, keinen hier zugesicherten Parallelbetrieb zweier Tokens.
+. Pods bei ENV-basierten Secrets erneuern und AD-, Git-, S3- bzw. internen Reloadzugriff prüfen. Alte Zugänge erst nach bestätigtem Übergang gemäss Betreiberverfahren deaktivieren.
+
+=== Sichern und wiederherstellen
+
+. Lieferungen und externe Publisher pausieren, laufende Verarbeitung abschliessen lassen.
+. Jenkins-Home mit Jobs, Historien, Credentials und den zu ihrer Entschlüsselung benötigten Jenkins-Schlüsseln konsistent sichern. Zugriff auf diese Sicherung entsprechend beschränken.
+. Publikationsbestand einschliesslich Manifest, referenzierter XTF/DuckDB, Downloads und RDF sichern. Repository-Revisionen, Images und Deployment-Konfiguration zuordnen; externe Secrets über das vereinbarte Secret-Management wiederherstellbar halten.
+. Editor-Nutzende sichern wichtige Entwürfe durch Export; diese liegen nicht im Serverbackup.
+. Bei Wiederherstellung zunächst Schreibzugriffe gesperrt halten. Jenkins und Zielkonfiguration herstellen; vollständigen zusammengehörigen Publikationsbestand übertragen, Referenzdateien vor dem Manifest.
+. Manifest und Dateien prüfen, dann Sodata starten bzw. neu laden und Funktionsprüfung aus <<abnahme>> wiederholen. Lieferungen erst danach freigeben.
+
+Ein altes `current.json` alleine ist kein vollständiges Rollback: CSV, XLSX und
+Parquet können feste URLs haben und inzwischen überschrieben sein. Eine
+Wiederherstellung muss den passenden Datenbestand einschliessen. Aufbewahrung,
+zulässiger Datenverlust und Wiederherstellungszeit vor Produktivfreigabe mit
+dem Plattformbetrieb vereinbaren; diese Anleitung setzt keine Werte dafür fest.

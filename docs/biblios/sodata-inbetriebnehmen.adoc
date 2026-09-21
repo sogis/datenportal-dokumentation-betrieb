@@ -1,0 +1,69 @@
+[[sodata]]
+== Sodata bereitstellen und Reload verbinden
+
+Zuständig: Anwendungsbetrieb; Services, Gateway und Netzfreigaben durch
+Plattformbetrieb. Voraussetzung sind geprüfte Manifest-/DuckDB-Artefakte aus
+<<bootstrap>>. Eine einzelne Sodata-Instanz ist die Betriebsannahme dieses Ablaufs.
+
+=== Katalog laden und Bereitschaft prüfen
+
+. Freigegebenes Sodata-Image auf Port 8080 mit folgenden Laufzeitwerten bereitstellen. Kein lokales Entwicklungsprofil aktivieren.
+
+[cols="2,3",options="header"]
+|===
+|Variable |Wert und Grund
+|`DATENPORTAL_CATALOG_SOURCE_TYPE` |`manifest`; Katalogquelle folgt dem veröffentlichten Verweis.
+|`DATENPORTAL_CATALOG_HTTP_URL` |Absolute öffentliche Manifestadresse; muss aus dem Pod erreichbar sein.
+|`DATENPORTAL_CATALOG_DUCKDB_SOURCE_TYPE` |`manifest`; Katalog-XTF und DuckDB werden aus derselben Manifestgeneration geladen. Keine separate DuckDB-Datei-/HTTP-Quelle konfigurieren.
+|`DOWNLOAD_URL` |Öffentliche Downloadbasis aus <<voraussetzungen>>. Dient der Auflösung eventueller XTF-Platzhalter und der Download-Origin-Konfiguration; schreibt bestehende DuckDB-Views nicht um.
+|`DATENPORTAL_ADMIN_RELOAD_TOKEN` |Extern bereitgestelltes Secret für Reload und Status; wird im nächsten Abschnitt mit Jenkins abgestimmt.
+|===
+
+. Liveness-Probe auf `/actuator/health/liveness` und Readiness-Probe auf `/actuator/health/readiness` einrichten; Startzeit für Quellenabruf und Indexaufbau berücksichtigen und Grenzwerte anhand des tatsächlichen Bestands festlegen.
+. Deployment starten und Logs sowie Readiness prüfen. Ohne explizite gültige Quelle erfolgt kein Rückfall auf Demodaten.
+. Portalansicht prüfen. Bei `catalog: null` sind eine leere Sicht und ein leerer Suchindex korrekt; bei ansonsten gesunden Komponenten bleibt Health `UP`. `/catalog/published-catalog.xtf` liefert in diesem Zustand 404, die DuckDB muss trotzdem vorhanden sein.
+
+=== Reload clusterintern einrichten
+
+. Der Plattformbetrieb stellt einen internen Service auf Sodata-Port 8080 bereit und erlaubt den Zugriff vom ausführenden Jenkins-/GRETL-Prozess. Adresse: `http://<sodata-service>.<namespace>.svc.cluster.local:8080/admin/catalog/reload`.
+. Vor öffentlicher Freigabe `/admin/catalog/**` am öffentlichen Gateway/Proxy sperren. Eine interne URL im Jenkins allein sperrt keine öffentliche Route. Eine NetworkPolicy filtert Verbindungen, nicht HTTP-Pfade. Das konkrete Gateway-Verfahren ist vom Plattformbetrieb bereitzustellen und separat zu prüfen.
+. Der Anwendungsbetrieb lässt ein gemeinsames Reload-Secret bereitstellen. Sodata erhält es als `DATENPORTAL_ADMIN_RELOAD_TOKEN`, Jenkins/GRETL als `ORG_GRADLE_PROJECT_portalReloadToken`. Am GRETL-Container `ORG_GRADLE_PROJECT_portalReloadUrl` auf die interne Adresse setzen.
+. Nach Konfigurationsänderungen betroffene Pods erneuern. Im Lieferformular löst erst «Portal nach Veröffentlichung neu laden» (`RELOAD_PORTAL`) einen Aufruf aus; der Default ist aus. Eine erfolgreiche Publikation alleine garantiert deshalb keinen Reload.
+
+Der Job ruft den Endpunkt mit POST und Header `X-Reload-Token` nach der
+Publikation und der erfolgreichen RDF-Prüfung auf. Erwartet werden HTTP 200
+und `success: true`. Der Editor ruft diesen Endpunkt nicht auf.
+
+=== Internen Status und Reload prüfen
+
+Am administrativen Arbeitsplatz ausführen. Das Secret wird im Jenkins-Container
+aus dessen Umgebung gelesen und über Standardinput an curl übergeben, nicht als
+Kommandozeilenargument. Kein Shell-Tracing (`set -x`) aktivieren. Für diesen
+Prüfablauf ein zufälliges einzeiliges alphanumerisches Token verwenden.
+
+[source,bash]
+----
+oc -n '<namespace>' exec -i '<jenkins-pod>' -c '<jenkins-container>' -- bash -s <<'SH'
+set -euo pipefail
+: "${ORG_GRADLE_PROJECT_portalReloadUrl:?Interne Reloadadresse fehlt}"
+: "${ORG_GRADLE_PROJECT_portalReloadToken:?Reloadtoken fehlt}"
+reload_url="$ORG_GRADLE_PROJECT_portalReloadUrl"
+status_url="${reload_url%/reload}/status"
+printf 'X-Reload-Token: %s\n' "$ORG_GRADLE_PROJECT_portalReloadToken" |
+  curl --fail --silent --show-error --header @- "$status_url"
+printf 'X-Reload-Token: %s\n' "$ORG_GRADLE_PROJECT_portalReloadToken" |
+  curl --fail --silent --show-error --header @- --request POST "$reload_url"
+SH
+----
+
+. Antwort prüfen: Status nennt Quelle und Eintragszahlen; Reload bestätigt `success: true`. Danach Portalinhalt prüfen.
+. Intern ohne bzw. mit falschem Token muss der Admin-Aufruf HTTP 401 liefern. Bei nicht konfiguriertem Token liefert die Anwendung 503; dies ist keine funktionierende Reload-Anbindung.
+. Über den öffentlichen Portalzugang GET auf `/admin/catalog/status` und POST auf `/admin/catalog/reload` prüfen. Beide müssen bereits am Gateway abgewiesen werden, auch mit gültiger Authentisierung. Den Test mit gültigem Token nur über HTTPS und ohne Token-Protokollierung durchführen; die Anwendung darf nicht erreicht werden. Eine bloss von Sodata gelieferte 401-Antwort beweist keine öffentliche Sperre.
+
+Bei Reloadfehlern bleibt der bisherige Portal-Snapshot aktiv; S3 kann bereits
+aktualisiert sein. Nach Behebung den Reload wiederholen, nicht automatisch die
+Lieferung. Bei mehreren Replikaten aktualisiert der Service-Aufruf nur die
+angesprochene Instanz. Vor Skalierung ein Verfahren für alle Instanzen festlegen.
+
+Details zu Quellen und Status stehen in der
+https://codeberg.org/edigonzales/datenportal-sodata/src/branch/main/docs/configuration.md[Sodata-Konfiguration].
