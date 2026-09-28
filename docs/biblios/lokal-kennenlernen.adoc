@@ -1,0 +1,293 @@
+[[lokal-kennenlernen]]
+== Datenportal lokal kennenlernen
+
+Dieses optionale Kapitel führt durch eine lokale Testpublikation: vom Start der
+Dienste über die Anlieferung bis zum sichtbaren Datensatz. Dabei lässt sich
+nachvollziehen, wie APISIX die Anwendungen und Downloads unter einer gemeinsamen
+Adresse verbindet. Für den produktiven Aufbau direkt mit <<voraussetzungen>>
+fortfahren.
+
+Der link:https://codeberg.org/edigonzales/datenportal-dev-stack[Dev-Stack] verwendet
+Docker Compose und bereits gebaute Containerimages. Garage samt Testbucket ist
+hier enthalten. Die Umgebung verwendet HTTP und lokale Jenkins-Testkonten statt
+AD; sie gehört auf einen geschützten Testrechner, nicht an einen öffentlich
+erreichbaren Anschluss. Die Compose-Ports sind standardmässig auch über andere
+Netzwerkschnittstellen erreichbar. Produktive Daten und Zugangsdaten gehören
+nicht in diesen Ablauf.
+
+[NOTE]
+====
+Die unten angegebenen Image-Tags wurden am 28.09.2026 auf Verfügbarkeit geprüft;
+Stackstart, Gateway-Zugänge und Seed wurden damit geprüft. Die Erstpublikation
+und die Anzeige der Pilotdaten im Portal sind noch nicht vollständig abgenommen:
+Die lokale Testumgebung hatte zu wenig freien Docker-Speicher für weitere Jobs.
+Image-Versionen, Themenrepo und Jenkins-Konfiguration müssen zusammenpassen.
+====
+
+=== Komponenten und Wege durch das Gateway
+
+image::lokaler-stack.svg["Lokaler Stack: Browser über APISIX zu Anwendungen und S3-Browser; Jenkins schreibt direkt nach Garage",link="images/lokaler-stack.svg"]
+
+Der Compose-Service `downloads` ist das API-Gateway Apache APISIX. Er vermittelt
+auch Jenkins, Editor, Dokumentation und Portal, nicht nur Downloads. Öffentliche
+Dateien liest der Service `s3-browser` mit einem eigenen Read-only-Schlüssel aus
+Garage. Jenkins/GRETL schreibt dagegen über die interne S3-API nach Garage.
+Browser erhalten keine S3-Zugangsdaten.
+
+APISIX teilt sich im Dev-Stack den Netzwerkraum mit Jenkins. Der öffentliche
+Port 8081 wird deshalb am Jenkins-Service veröffentlicht. APISIX erreicht
+Jenkins dort unter `127.0.0.1:8080`; Jenkins erreicht die öffentliche
+Downloadbasis unter `http://localhost:8081/ch.so.daten`. Sodata liest das gleiche
+Manifest über `http://jenkins:8081/ch.so.daten/current.json`. Diese lokale
+Netzwerklösung sorgt dafür, dass auch GRETL die in den Publikationsartefakten
+gespeicherten Downloadadressen aufrufen kann. Sie ist keine Vorlage für
+OpenShift-Serviceadressen; die produktive Einordnung steht in <<apisix>>.
+
+=== Testumgebung vorbereiten
+
+Benötigt werden Docker mit laufendem Daemon und Compose v2, Git, Bash, OpenSSL,
+curl, Python 3 und die üblichen Shellwerkzeuge. Netzwerkzugriff auf die
+Repositories und Containerregistries ist erforderlich. Java, Maven und Node
+müssen auf dem Arbeitsplatz nicht installiert werden. Die folgenden Befehle
+verwenden eine Bash-kompatible Shell und die freien Hostports 8081 und 3900.
+
+In einem neuen gemeinsamen Arbeitsverzeichnis diese vier Repositories klonen:
+
+[source,bash]
+----
+mkdir datenportal-demo
+cd datenportal-demo
+git clone https://codeberg.org/edigonzales/datenportal-dev-stack.git
+git clone https://codeberg.org/edigonzales/datenportal-jenkins-dev.git
+git clone https://codeberg.org/edigonzales/datenportal-themenrepo.git
+git clone https://codeberg.org/edigonzales/datenportal-pilot-daten.git
+cd datenportal-dev-stack
+docker compose version
+docker info
+----
+
+`datenportal-jenkins-dev` liefert die gemountete lokale Jenkins-Konfiguration
+(JCasC); daraus wird hier kein Image gebaut. Das Themenrepo liefert die
+Jobdefinitionen, Datenblätter und den Verarbeitungsvertrag. Die Pilotdaten
+enthalten die CSV für die spätere Testlieferung. Alle weiteren Shellbefehle
+werden im Verzeichnis `datenportal-dev-stack` ausgeführt.
+
+Keine zweite Instanz neben einem bereits laufenden Dev-Stack mit denselben
+Ports und demselben Compose-Projektnamen starten. Ein vorhandener Stack ist
+ausserdem kein frischer Publikationsbestand.
+
+=== Mit vorhandenen Images starten
+
+Zuerst die lokale Konfiguration erzeugen:
+
+[source,bash]
+----
+./scripts/init.sh
+----
+
+Die voreingestellten Tags `0.1.0` für Jenkins und Sodata waren beim Prüfstand
+nicht verfügbar. In der erzeugten `.env` die beiden vorhandenen Image-Zeilen
+durch diese veröffentlichten Tags ersetzen; alle anderen Werte einschliesslich der erzeugten
+Schlüssel beibehalten:
+
+[source,ini]
+----
+DATENPORTAL_JENKINS_IMAGE=sogis/datenportal-jenkins:0.1.0-2
+DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.5
+----
+
+Danach starten:
+
+[source,bash]
+----
+./scripts/up.sh --registry-only
+docker compose ps -a
+----
+
+Der Aufruf verwendet vorhandene Images beziehungsweise lädt fehlende Images
+aus der Registry. Er baut keine Komponenten lokal. Bereits vorhandene Images
+werden dabei nicht automatisch auf neuere Registry-Inhalte geprüft.
+
+Das Skript erzeugt einmalig die ignorierte `.env` und
+`services/garage/garage.toml` mit lokalen Secrets, startet Garage und richtet
+den Bucket `ch.so.daten` samt öffentlichem Lesepfad ein. Es wartet auf die
+Bereitschaft der Dienste. `garage-init` läuft einmalig und wird danach entfernt;
+er muss deshalb nicht in `docker compose ps -a` erscheinen. `.env` und
+Garage-Konfiguration zusammen mit den persistenten Daten erhalten und nicht
+committen oder in Diagnoseausgaben kopieren.
+
+Auf einem frischen Stack fehlt `current.json` noch. Die entsprechende Meldung
+von `up.sh` ist erwartet: Sodata bleibt gestoppt. Jenkins, Editor, Dokumentation
+und das Gateway sind bereits nutzbar; die Portaladresse liefert in dieser
+Phase noch keine funktionsfähige Portaloberfläche.
+
+=== Öffentliche Zugänge prüfen
+
+Alle folgenden Pfade liegen unter `http://localhost:8081`:
+
+[cols="2,3,3",options="header"]
+|===
+|Pfad |Zweck |Verhalten von APISIX
+|`/anlieferung` |Einstieg für Lieferungen |HTTP 302 auf `/jenkins/gretl-datenportal/`; Anmeldung bei Jenkins.
+|`/jenkins/` |Jenkins und Seed |Weiterleitung zum Jenkins-Service mit erhaltenem Prefix `/jenkins`.
+|`/datenblatt-editor/` |Datenblätter bearbeiten |Prefix beim Backendaufruf entfernen und `X-Forwarded-Prefix` setzen.
+|`/dokumentation/` |Dokumentation aus dem Image |Prefix beim Backendaufruf entfernen und `X-Forwarded-Prefix` setzen.
+|`/ch.so.daten/` |Öffentliche Dateien und Manifest |Lesepfad über `s3-browser` nach Garage.
+|`/` |Sodata-Portal nach der Publikation |Auffangroute mit niedrigster Priorität; übrige spezifische Routen gehen vor.
+|===
+
+Die Dokumentation im Container zeigt den Stand ihres veröffentlichten Images.
+Lokale Änderungen an Dokumentationsquellen erscheinen dort nicht automatisch.
+
+Einige Prüfungen sind bereits vor der ersten Publikation möglich:
+
+[source,bash]
+----
+curl -fsS http://localhost:8081/gateway-health
+curl -sS -o /dev/null -D - http://localhost:8081/anlieferung
+curl -sS -o /dev/null -D - http://localhost:8081/datenblatt-editor
+curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:8081/ch.so.daten/current.json
+curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:8081/admin/catalog/status
+curl -sS -X POST -o /dev/null -w '%{http_code}\n' http://localhost:8081/admin/catalog/reload
+curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:8081/actuator/health
+----
+
+Erwartet werden `ok`, eine 302-Weiterleitung zur Anlieferung, eine
+308-Weiterleitung zum Editorpfad mit abschliessendem Slash, auf einem frischen
+Bestand 404 für das Manifest und jeweils 403 für die Administrationspfade.
+`/gateway-health` prüft nur APISIX, nicht die Bereitschaft seiner Backends.
+Editor und Dokumentation zusätzlich im Browser öffnen; auch deren Assets
+müssen über dieselbe Gateway-Adresse laden.
+
+=== Jobs erzeugen und den ersten Bestand initialisieren
+
+. `http://localhost:8081/jenkins/` öffnen und mit dem lokalen Testkonto `admin` / `admin` anmelden.
+. Den automatisch angelegten Job `gretl-datenportal-seed` starten. Erfolgreichen Abschluss und erzeugte Organisationsjobs prüfen. Der Seed publiziert keine Daten; er übernimmt hier den lokalen Themenrepo-Arbeitsstand.
+. In «Jenkins verwalten» das Herunterfahren vorbereiten (Quiet Down), sodass keine neuen Builds starten. Laufende Builds vollständig abwarten; Jenkins selbst weiterlaufen lassen.
+. Die gültigen Datenblätter und `shared/data/offices.xtf` im Themenrepo voraussetzen. Die Initialisierung verarbeitet alle Themen, nicht nur das spätere Beispiel.
+
+Der folgende vollständige Block prüft zuerst auf HTTP 404 und erstellt dann
+eine neue beschreibbare Kopie im Jenkins-Volume. Quellmount und Seeder-Snapshot
+werden nicht als Buildverzeichnis verwendet:
+
+[source,bash]
+----
+bash <<'LOCAL'
+set -euo pipefail
+manifest_status=$(curl -sS -o /dev/null -w '%{http_code}' \
+  http://localhost:8081/ch.so.daten/current.json)
+if [ "$manifest_status" != 404 ]; then
+  echo "Keine Erstinitialisierung: Manifest liefert HTTP $manifest_status." >&2
+  exit 1
+fi
+docker compose exec -T jenkins bash -s <<'SH'
+set -euo pipefail
+publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
+tar -C /workspace/themenrepo \
+  --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
+  -cf - . | tar -C "$publication_init_dir" -xf -
+cd "$publication_init_dir"
+./shared/bin/gradlew-java17.sh --no-daemon \
+  -I "$PWD/shared/gradle/init.gradle" initializePublication \
+  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false
+printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
+SH
+LOCAL
+----
+
+Java, Offline-Bundle und S3-Zugänge kommen aus dem Jenkins-Container. Kein
+`--offline` ergänzen, da HTTP-Abfragen zum Ablauf gehören. Die Arbeitskopie
+bleibt für Diagnose erhalten. Den erfolgreichen Abschluss und `report.json`
+im ausgegebenen Verzeichnis prüfen, danach das Manifest abrufen:
+
+[source,bash]
+----
+curl -fsS http://localhost:8081/ch.so.daten/current.json
+----
+
+Das Manifest muss eine `releaseId`, eine Datenblattsammlung und eine gültige
+DuckDB referenzieren. Ohne initialen Datenkatalog ist `catalog: null` zulässig.
+Die referenzierten Dateien müssen relativ zu `/ch.so.daten/` abrufbar sein.
+Nach erfolgreicher Prüfung Quiet Down in Jenkins aufheben.
+
+Bei einem Fehler zuerst Bericht und Manifest prüfen. Ein vorhandenes Manifest
+nicht löschen und die Erstinitialisierung nicht wiederholen. Die fachlichen
+Hintergründe und die Prüfung des Publikationsbestands stehen in <<bootstrap>>;
+die dortigen OpenShift-Befehle werden für diesen lokalen Ablauf nicht benötigt.
+
+=== Eine CSV anliefern und das Portal öffnen
+
+. `http://localhost:8081/anlieferung` öffnen.
+. Organisation `statistikdienst` und Thema `ch.so.bevoelkerung.altersstruktur` wählen.
+. «Lieferung verarbeiten» wählen und als Datendatei `../datenportal-pilot-daten/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv` auswählen.
+. Als Ausgabe `2025` eintragen. Metadatenupload leer lassen; die initialisierte Datenblattsammlung enthält das zugehörige Datenblatt.
+. «Portal nach Veröffentlichung neu laden» ausgeschaltet lassen. Sodata läuft in diesem ersten Durchgang noch nicht.
+. Job starten und einen erfolgreichen Build abwarten. Im zugehörigen `report.json` die angenommene Publikation und den RDF-Export prüfen; `current.json` muss eine neue `releaseId` enthalten.
+
+Nun Sodata starten. Für den hier beschriebenen Ablauf ohne lokale
+Overrides diesen vollständigen Befehl verwenden:
+
+[source,bash]
+----
+docker compose -f compose.yaml up -d --wait --wait-timeout 120 sodata
+docker compose exec -T jenkins curl -fsS http://sodata:8080/actuator/health
+----
+
+Unter `http://localhost:8081/` nach «Altersstruktur» suchen, den Datensatz für
+2025 öffnen, einen Download abrufen und «Erkunden» ausprobieren. Die Daten
+kommen aus der gerade erzeugten Publikation; Portal und Dateien werden über
+APISIX ausgeliefert. Die interne Health-Abfrage ist erlaubt, obwohl dieselbe
+Administrationsadresse öffentlich 403 liefert.
+
+Das Portal lädt den Bestand beim Start. Für diesen ersten Durchgang ist deshalb
+kein Reload-Token nötig. Nach einer weiteren Lieferung kann der lokale
+Portalstand mit `docker compose restart sodata` aktualisiert werden. Die
+Konfiguration eines automatischen Reloads gehört zum weiterführenden Betrieb,
+siehe <<sodata>>.
+
+Zum Kennenlernen des Editors unter `http://localhost:8081/datenblatt-editor/`
+die Datei
+`../datenportal-themenrepo/statistikdienst/ch.so.bevoelkerung.altersstruktur/meta-ch.so.bevoelkerung.altersstruktur.xtf`
+lokal importieren, bearbeiten und wieder als XTF exportieren. Dieser Export
+publiziert noch nichts; erst eine anschliessende Lieferung über Jenkins
+übernimmt Änderungen. Der Ablauf setzt keinen Browser-Import über das
+Manifest voraus.
+
+=== Anhalten, wieder starten und Fehler eingrenzen
+
+[source,bash]
+----
+docker compose ps -a
+docker compose logs --tail=100 downloads jenkins
+docker compose logs --tail=100 sodata s3-browser garage
+./scripts/down.sh
+----
+
+`down.sh` entfernt die Container und das Compose-Netzwerk. Jenkins-Home und
+Garage-Daten bleiben in Volumes erhalten. Ein späterer Start mit
+`./scripts/up.sh --registry-only` verwendet den bestehenden Bestand; bei gültigem
+Manifest startet dann auch Sodata. Keine erneute Erstinitialisierung ausführen.
+Volumes und die dazugehörigen lokalen Secrets nicht als Fehlerbehebung löschen.
+
+[cols="2,4",options="header"]
+|===
+|Beobachtung |Nächster Schritt
+|Image fehlt oder Pull schlägt fehl |Image-Referenz, Registryzugriff und Netzwerk prüfen. Passende veröffentlichte Jenkins-/Sodata-Images mit `DATENPORTAL_JENKINS_IMAGE` bzw. `DATENPORTAL_SODATA_IMAGE` in `.env` auswählen und mit Themenrepo/JCasC abstimmen. Keine lokalen Buildoptionen als Ersatz verwenden.
+|Port bereits belegt |Andere lokale Dienste und bestehende Compose-Instanzen prüfen. Für diesen Durchlauf die Standardports freigeben; alternative Ports sind in der Stack-Dokumentation beschrieben.
+|Job bleibt in der Warteschlange
+|In Jenkins den Ausführungsknoten und dessen Offline-Grund prüfen. Der Docker-Datenträger benötigt genügend freien Speicher; Jenkins sperrt den Knoten bei Unterschreiten seines Grenzwerts. Ein laufender Container allein belegt keine verfügbaren Jenkins-Executors.
+|Seed schlägt fehl oder Organisationsjob fehlt |Seed-Konsolenausgabe, Themenrepo-Mount und Gültigkeit der Konfiguration prüfen. Nach Änderungen am Themenrepo erneut seeden.
+|Manifest fehlt, Portal startet nicht |Vor Erstpublikation erwartet. Initialisierung und anschliessende Lieferung prüfen; Gateway und Jenkins müssen unabhängig davon erreichbar sein.
+|Manifest vorhanden, aber ungültig oder ohne DuckDB |Image-/Themenrepo-Stände und Publikationsbericht prüfen. Keinen neuen leeren Bestand über die vorhandene Publikation legen.
+|Gateway liefert 502/504 |Bereitschaft und Logs des betroffenen Backends prüfen. Ein erfolgreiches `/gateway-health` bestätigt dessen Funktion nicht.
+|Neue Publikation fehlt im Portal |Erfolgreichen Publikationsbericht prüfen, dann Sodata neu starten und dessen Healthcheck abwarten.
+|===
+
+Weiterführende Varianten stehen in der
+link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/docs/biblios[Stack-Dokumentation]:
+link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/docs/biblios/start.adoc[Start und Image-Auswahl],
+link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/docs/biblios/inbetriebnahme.adoc[Inbetriebnahme und Migration]
+und
+link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/docs/biblios/entwicklung.adoc[Entwicklung und Tests].
+Die lokale Demonstration ersetzt keine produktive Abnahme. Mit
+<<voraussetzungen>> beginnt der davon unabhängige produktive Betriebsablauf.

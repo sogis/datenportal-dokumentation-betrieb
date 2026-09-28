@@ -27,6 +27,17 @@ sperren; nach Reparatur Jobzustand ausdrücklich prüfen, nicht nur den Seed-Sta
 . Bei alten Manifesten ohne DuckDB zuerst Publisher aktualisieren und regulär publizieren; danach Sodata mit DuckDB-Manifestmodus starten. Keine Neuinitialisierung durch Löschen von `current.json`.
 . Health, Anmeldung, Jobrechte und die lokalen Editor-Funktionen (XTF-Import, Entwurf und Export) wiederholen. Der Browser-Quellenimport bleibt deaktiviert; gespeicherte Quelleneinstellungen werden erst bei einer späteren Reaktivierung relevant.
 
+=== APISIX und öffentliche Adressen pflegen
+
+Gateway-Image, `config.yaml`, `apisix.yaml`, Router- und Zertifikatskonfiguration
+zusammen versionieren beziehungsweise sicher referenzieren. Änderungen kontrolliert
+ausrollen, dann Weiterleitungen, Login, Upload, Downloads und Pfadsperren aus
+<<apisix>> prüfen. Bei Fehlern auf den zuvor protokollierten Stand zurückrollen.
+Ein Gateway-Rollback verändert weder S3 noch den geladenen Portalstand.
+
+Bei Änderung der öffentlichen Downloadbasis auch Katalog und DuckDB-Views neu
+erzeugen; ein anderer Host in Sodata allein repariert gespeicherte URLs nicht.
+
 === Secrets wechseln
 
 . AD-/S3-/Git-Zugänge mit dem jeweiligen Betreiber erneuern und die betroffenen Secret-Referenzen bzw. Jenkins-Credentials aktualisieren.

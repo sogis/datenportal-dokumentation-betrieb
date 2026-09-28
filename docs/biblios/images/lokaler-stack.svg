@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="650" viewBox="0 0 1080 650" role="img" aria-labelledby="title desc">
+  <title id="title">Datenportal lokal: Zugriffe über APISIX</title>
+  <desc id="desc">Der Browser erreicht über APISIX auf Port 8081 Jenkins, Editor, Dokumentation, Sodata und den S3-Browser. Der S3-Browser liest Garage, Jenkins schreibt direkt nach Garage. Jenkins und APISIX teilen einen Netzwerkraum.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#365773"/></marker>
+    <marker id="write" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a44716"/></marker>
+    <style>
+      text { font-family: system-ui, -apple-system, sans-serif; fill: #183247; font-size: 17px; }
+      .title { font-size: 25px; font-weight: 700; }
+      .name { font-weight: 650; font-size: 20px; }
+      .small { font-size: 15px; }
+      .box { fill: #f4f8fc; stroke: #90a9bd; stroke-width: 1.5; }
+      .flow { fill: none; stroke: #365773; stroke-width: 2; marker-end: url(#arrow); }
+      .write { fill: none; stroke: #a44716; stroke-width: 2.5; marker-end: url(#write); }
+    </style>
+  </defs>
+  <rect width="1080" height="650" fill="white"/>
+  <text x="30" y="40" class="title">Ein öffentlicher Zugang – mehrere Dienste</text>
+  <text x="30" y="68">Lokaler Docker-Compose-Stack · Standardport 8081</text>
+  <rect x="220" y="92" width="615" height="126" rx="12" fill="#eef6ef" stroke="#a5bea8" stroke-dasharray="6 4"/>
+  <text x="238" y="114" class="small">Gemeinsamer Netzwerkraum von APISIX und Jenkins</text>
+  <rect x="30" y="133" width="154" height="82" rx="9" class="box"/>
+  <text x="107" y="169" text-anchor="middle" class="name">Browser</text>
+  <text x="107" y="193" text-anchor="middle" class="small">localhost:8081</text>
+  <rect x="238" y="132" width="232" height="72" rx="9" fill="#dceaf7" stroke="#365773" stroke-width="2"/>
+  <text x="354" y="160" text-anchor="middle" class="name">APISIX · downloads</text>
+  <text x="354" y="185" text-anchor="middle" class="small">Routing und Pfadsperren</text>
+  <path d="M184 172 H238" class="flow"/>
+  <rect x="590" y="132" width="224" height="72" rx="9" class="box"/>
+  <text x="702" y="161" text-anchor="middle" class="name">Jenkins / GRETL</text>
+  <text x="702" y="186" text-anchor="middle" class="small">127.0.0.1:8080</text>
+  <path d="M470 172 H590" class="flow"/>
+  <text x="478" y="154" class="small">/jenkins/</text>
+  <path d="M354 204 V491" fill="none" stroke="#365773" stroke-width="2"/>
+  <rect x="590" y="246" width="224" height="60" rx="9" class="box"/>
+  <text x="702" y="283" text-anchor="middle" class="name">Datenblatt-Editor</text>
+  <path d="M354 276 H590" class="flow"/>
+  <text x="372" y="264" class="small">/datenblatt-editor/</text>
+  <rect x="590" y="320" width="224" height="60" rx="9" class="box"/>
+  <text x="702" y="357" text-anchor="middle" class="name">Dokumentation</text>
+  <path d="M354 350 H590" class="flow"/>
+  <text x="372" y="338" class="small">/dokumentation/</text>
+  <rect x="590" y="394" width="224" height="60" rx="9" class="box"/>
+  <text x="702" y="431" text-anchor="middle" class="name">Sodata · Portal</text>
+  <path d="M354 424 H590" class="flow"/>
+  <text x="372" y="412" class="small">/ und Portalpfade</text>
+  <rect x="590" y="468" width="224" height="60" rx="9" class="box"/>
+  <text x="702" y="505" text-anchor="middle" class="name">S3-Browser · rclone</text>
+  <path d="M354 491 H590" class="flow"/>
+  <text x="372" y="479" class="small">/ch.so.daten/</text>
+  <rect x="885" y="454" width="165" height="88" rx="9" fill="#fff3e8" stroke="#bd855c" stroke-width="1.5"/>
+  <text x="967" y="488" text-anchor="middle" class="name">Garage</text>
+  <text x="967" y="514" text-anchor="middle" class="small">Bucket ch.so.daten</text>
+  <path d="M814 498 H885" class="flow"/>
+  <text x="824" y="480" class="small">lesen</text>
+  <path d="M814 172 H967 V454" class="write"/>
+  <text x="950" y="266" text-anchor="end" class="small" style="fill:#a44716">S3 schreiben</text>
+  <text x="950" y="290" text-anchor="end" class="small" style="fill:#a44716">garage:3900</text>
+  <text x="30" y="573" class="small">Pfeile zeigen Anfragen. Manifest und Downloads: Jenkins und Sodata lesen ebenfalls über APISIX.</text>
+  <text x="30" y="600" class="small">Intern: Jenkins → localhost:8081 · Sodata → jenkins:8081 · optionaler Reload: Jenkins → sodata:8080</text>
+  <text x="30" y="627" class="small">Öffentlich gesperrt: /admin, /actuator und /apisix/admin samt Unterpfaden.</text>
+</svg>

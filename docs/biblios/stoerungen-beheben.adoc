@@ -8,6 +8,10 @@ Manifestgeneration und Fehlertext ohne Secrets festhalten.
 [cols="2,3,3",options="header"]
 |===
 |Symptom |Prüfen und handeln |Erfolgskontrolle
+|Öffentliche Zugänge nicht erreichbar |APISIX-Pod, Router/TLS, DNS und Gateway-Health prüfen; danach Upstream-Verbindung und Backend-Readiness. Ein gesunder Gateway beweist kein gesundes Backend. |Routenprüfung aus <<apisix>> erfolgreich.
+|Login/Assets führen auf falsche Pfade |Jenkins-Prefix, JENKINS_URL, Host und vertrauenswürdige Forwarded-Header; beim Editor Rewrite und X-Forwarded-Prefix prüfen. |Login, Formular und Assets über die öffentliche HTTPS-Adresse korrekt.
+|Upload liefert 413 oder 504 |Requestgrösse inklusive Multipart, Router-/APISIX-Grenzen, temporären Speicher und Upstream-Timeout prüfen. Vor Wiederholung Buildhistorie kontrollieren. |Zulässige Testlieferung startet genau einmal.
+|Öffentlicher Adminpfad liefert 401 statt 403 |Anwendung wurde erreicht: APISIX-Sperrroute, Priorität, Hostzuordnung und direkte Backendrouten prüfen. |403 bereits am Gateway, auch mit gültigem Token.
 |Jenkins startet nicht |Startup-Log: Pflicht-ENV, JCasC, Volume-Rechte und Zertifikate. Mit Plattformbetrieb fehlende Angaben korrigieren und Pod erneuern. |Jenkins erreichbar, Admin-Anmeldung möglich.
 |AD-Anmeldung scheitert |AD-Erreichbarkeit, TLS-Vertrauen, Bind-Zugang und persönliches Konto prüfen. Technischer Bind-User ersetzt keinen persönlichen Login. |Login mit vorgesehenem AD-Konto.
 |Login geht, Job fehlt |Jenkins-Benutzer-ID, Teams, Organisationsberechtigung und letzten erfolgreichen Seed prüfen. Änderungen committen und neu seeden. |Prüfung mit betroffenem normalen Benutzer, nicht Admin.
@@ -29,7 +33,7 @@ rücklesen und mit dem Jobbericht vergleichen. Ein unbekanntes Ergebnis ist wede
 eine bestätigte Rücknahme noch eine Einladung zur Neuinitialisierung.
 
 Offene Produktionspunkte dieses ersten Wurfs sind konkrete Domains und
-Namespaces, Gateway-Regeln, Ressourcen-/Probe-Grenzwerte, Sicherungsziele und
+Namespaces, Umsetzung der APISIX-Zielkonfiguration, Ressourcen-/Probe-Grenzwerte, Sicherungsziele und
 ein allfälliger Mehrreplikatbetrieb. Diese Angaben im Inbetriebnahmeprotokoll
 vervollständigen. Die Schritte wurden anhand der Komponentenquellen beschrieben;
 produktive AD-, OpenShift- und S3-Funktionstests sind durch die Abnahme nachzuweisen.

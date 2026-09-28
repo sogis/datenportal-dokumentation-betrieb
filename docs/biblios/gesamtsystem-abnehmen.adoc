@@ -6,6 +6,7 @@ bestätigt Netzwerk- und Gateway-Prüfungen. Voraussetzungen sind die erfolgreic
 Einzelprüfungen aller vorherigen Kapitel. Eine zulässige Testlieferung und deren
 erwartete fachliche Sichtbarkeit vorab vereinbaren: Dieser Ablauf publiziert Daten.
 
+. Gateway-Routen, TLS-/Forwarded-Header-Verhalten, CORS/Range und öffentliche Pfadsperren gemäss <<apisix>> bestätigen; keine direkten öffentlichen Backendzugänge belassen.
 . Image-Versionen, Themenrepo-Revision, Zieladressen und aktuellen `releaseId` protokollieren, ohne Secrets.
 . Mit einem normalen AD-Benutzer ohne Teamzuordnung anmelden: Jenkins-Einstieg möglich, keine Organisationsjobs sichtbar. Ein `read`-Benutzer darf den zugewiesenen Job sehen, aber nicht starten. Ein `build`-Benutzer darf diesen starten, aber nicht konfigurieren. Admin-Konto nicht als Beweis für Teamrechte verwenden.
 . Im Editor eine lokale XTF-Datei importieren oder einen neuen Entwurf anlegen, für die vereinbarte Organisation bearbeiten und als XTF exportieren. Die Quellenkarte bleibt deaktiviert; der Browser muss dafür kein `current.json` laden.

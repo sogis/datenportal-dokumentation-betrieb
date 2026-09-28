@@ -2,9 +2,12 @@
 == Überblick und Aufbau der Dokumentation
 
 Diese Anleitung führt den Plattform- und Anwendungsbetrieb von den benötigten
-Zugängen bis zur ersten geprüften Veröffentlichung. S3-Dienst und Bucket sind
+Zugängen bis zur ersten geprüften Veröffentlichung. Für den produktiven Ablauf sind S3-Dienst und Bucket
 bereits eingerichtet. Anwendungsentwicklung, Garage-Installation und fachliche
 Datenaufbereitung werden in den jeweiligen Dokumentationen behandelt.
+
+APISIX bündelt die öffentlichen Zugänge und trennt sie von internen
+Administrationspfaden. Die Einrichtung und der URL-Vertrag stehen in <<apisix>>.
 
 Der Editor importiert derzeit lokale XTF-Dateien oder legt neue Datenblätter an,
 bearbeitet sie im Browser und exportiert eine Datei. Eine berechtigte Person
@@ -22,7 +25,13 @@ Katalog, Downloads und «Erkunden» bereit. Der technische Browser-Import über
 |Portalstand |Von einer Sodata-Instanz geladener Bestand. Neue Veröffentlichungen erscheinen nach erfolgreichem Reload oder Neustart.
 |===
 
-Bis zur Gesamtabnahme die Kapitel in Reihenfolge durchlaufen. Eingesetzte
+Zum praktischen Einstieg bietet <<lokal-kennenlernen>> einen optionalen lokalen
+Durchlauf mit Docker Compose und vorhandenen Images bis zur Testpublikation.
+Dort wird Garage mit einem Testbucket bereitgestellt.
+
+Für den produktiven Aufbau ab <<voraussetzungen>> die Kapitel bis zur
+Gesamtabnahme in Reihenfolge durchlaufen; der lokale Durchlauf ist dafür keine
+Voraussetzung. Eingesetzte
 Image-Versionen, Konfiguration und Prüfergebnisse in einem Inbetriebnahmeprotokoll
 festhalten. Beispiele mit `<...>` sind vor Ausführung zu ersetzen.
 

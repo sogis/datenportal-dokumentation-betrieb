@@ -1,0 +1,182 @@
+[[apisix]]
+== APISIX als öffentlichen Zugang bereitstellen
+
+Zuständig: Plattformbetrieb für Gateway, Router, Zertifikate und Netz;
+Anwendungsbetrieb für Zielservices, Anwendungspfade und Funktionsprüfung.
+Apache APISIX vermittelt die öffentlichen HTTP-Zugriffe an Editor, Jenkins,
+Sodata und den öffentlichen Dateilesedienst. Anmeldung und Jobrechte bleiben
+bei Jenkins; APISIX ersetzt weder AD noch die Tokenprüfung von Sodata.
+
+Ein geführter lokaler Durchlauf mit Erklärung der Gateway-Wege steht in
+<<lokal-kennenlernen>>.
+
+Dieses Kapitel beschreibt eine Produktions-Zielkonfiguration. Der lokal geprüfte
+Dev-Stack liefert eine ausführbare Referenz für Routing und Prefix-Verhalten,
+aber keinen Nachweis eines produktiven OpenShift-Deployments. S3-Dienst und
+öffentlicher Lesedienst werden vom Speicherbetrieb übernommen.
+
+=== Adressen und Weiterleitungen
+
+[cols="2,3,3",options="header"]
+|===
+|Öffentlicher Zugang |Ziel |Behandlung durch APISIX
+|`https://daten.so.ch/` und übrige Portalpfade |Sodata, Port 8080 |Pfad erhalten; Auffangroute mit niedrigster Priorität.
+|`/datenblatt-editor/` |Editor, Port 8080 |Prefix entfernen, `X-Forwarded-Prefix: /datenblatt-editor` setzen.
+|`/datenblatt-editor` |Slash-Adresse |HTTP 308, Queryparameter erhalten.
+|`/metadaten-editor` und Unterpfade |Entsprechender neuer Editorpfad |HTTP 308; Unterpfad und Queryparameter erhalten.
+|`/anlieferung` und `/anlieferung/` |`/jenkins/gretl-datenportal/` |HTTP 302 zum Anlieferungsformular; Anmeldung erfolgt in Jenkins.
+|`/jenkins/` und Unterpfade |Jenkins, Port 8080 |Pfad einschliesslich `/jenkins` erhalten. `/jenkins` mit 308 auf Slash-Adresse umleiten.
+|`https://<download-host>/<oeffentlicher-pfad>/…` |Öffentlicher Dateilesedienst |Eigenen Host matchen; Pfad auf dessen Vertrag abstimmen. Keine S3-Schreibcredentials vom Browser verlangen.
+|`/admin`, `/admin/*`, `/actuator`, `/actuator/*`, `/apisix/admin`, `/apisix/admin/*` |Kein Upstream |HTTP 403 für alle Methoden, vor der Portal-Auffangroute.
+|===
+
+In Produktion erhält der Dateizugang eine andere Subdomain als `daten.so.ch`.
+Ein Bucketname muss nicht Bestandteil der öffentlichen URL sein. Downloadbasis,
+Manifestadresse und die im Katalog beziehungsweise in DuckDB gespeicherten URLs
+vor Erstpublikation verbindlich festlegen. Im Dev-Stack ist die Basis weiterhin
+`http://localhost:8081/ch.so.daten`, alle Anwendungen nutzen denselben Port.
+Ein Wechsel der Downloadbasis erfordert neu erzeugte Publikationsartefakte;
+eine nachträgliche Gateway-Weiterleitung ist kein Ersatz für diesen Abgleich.
+
+=== Laufzeit und Konfigurationsquelle
+
+. Freigegebenen APISIX-Tag oder Digest protokollieren. Die Dev-Referenz verwendet `apache/apisix:3.14.1-debian`. Produktionsfreigabe und OpenShift-Sicherheitskontext separat prüfen; Schreibrechte für NGINX-Laufzeitdateien und temporäre Uploads bereitstellen.
+. Dateibasierten Standalone-Betrieb verwenden: `APISIX_STAND_ALONE=true`, `deployment.role=data_plane` und `deployment.role_data_plane.config_provider=yaml`. Damit sind weder etcd noch eine Admin-API für die Konfigurationspflege nötig.
+. `config.yaml` und `apisix.yaml` unter `/usr/local/apisix/conf/` read-only bereitstellen. Nichtgeheime Inhalte versionieren und als ConfigMap ausrollen; Zugangsdaten gehören in Secret-Verwaltung. `apisix.yaml` muss mit `#END` enden.
+. Zielservices, Ports und DNS-Auflösung aus dem APISIX-Pod prüfen. Der Dev-Stack verwendet für Jenkins `127.0.0.1:8080`, weil beide denselben Netzwerkraum teilen. In OpenShift den tatsächlichen Jenkins-Service verwenden; diese Loopback-Adresse nicht übernehmen.
+. APISIX-Service nur über den vorgesehenen Router freigeben. Direkte öffentliche Routen zu Jenkins oder Sodata entfernen, damit die Pfadsperren nicht umgangen werden. Netzregeln erlauben nur die benötigten Serviceverbindungen; Reload vom GRETL-Prozess zu Sodata zusätzlich zulassen.
+
+Minimales Muster für `config.yaml`; die gewählten Grenzwerte sind
+Startwerte für die Abnahme, keine vermessene Produktionskapazität:
+
+[source,yaml]
+----
+apisix:
+  node_listen: 8081
+  enable_ipv6: false
+  ssl:
+    enable: false
+  # Nur die tatsächlichen Router-Quellnetze einsetzen, niemals 0.0.0.0/0.
+  trusted_addresses:
+    - <router-quellnetz-cidr>
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+nginx_config:
+  worker_processes: auto
+  error_log: /dev/stderr
+  http:
+    access_log: /dev/stdout
+    client_max_body_size: 256m
+----
+
+Routenänderungen liest APISIX im dateibasierten Modus neu ein. Änderungen an
+`config.yaml` erfordern einen Neustart beziehungsweise Rollout. Bei ConfigMap-
+Mounts mit `subPath` werden geänderte Dateien nicht automatisch im laufenden Pod
+ersetzt; deshalb für beide Dateien einen kontrollierten Rollout mit neuer
+Konfigurationsversion verwenden. Ein erfolgreicher YAML-Parse allein belegt
+noch keine gültige APISIX-Plugin-Konfiguration.
+
+=== Routingregeln und öffentliche Sperren
+
+Die vollständige lokale Vorlage liegt in
+link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/services/apisix/apisix.yaml[services/apisix/apisix.yaml].
+Für Produktion Hosts und Upstreams explizit ergänzen: Anwendungshost
+`daten.so.ch`, separater Downloadhost und deren freigegebene Backendservices.
+Unbekannte Hosts dürfen nicht von einer hostlosen Portalroute bedient werden.
+Die lokale Vorlage ist deshalb nicht unverändert als Produktionsdatei geeignet.
+
+Sperrroute vor spezifischen Anwendungsrouten und der Portal-Auffangroute
+anordnen und mit höherer Priorität versehen. Das Muster gilt für den
+Anwendungshost; für jeden weiteren öffentlich bedienten Host dieselben
+Administrationspfade ausschliessen:
+
+[source,yaml]
+----
+routes:
+  - id: internal-paths
+    host: daten.so.ch
+    priority: 100
+    uris: [/admin, /admin/*, /actuator, /actuator/*, /apisix/admin, /apisix/admin/*]
+    plugins:
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - 'return function() return ngx.exit(403) end'
+  - id: portal
+    host: daten.so.ch
+    uri: /*
+    priority: -100
+    upstream:
+      type: roundrobin
+      pass_host: pass
+      nodes:
+        "<sodata-service>:8080": 1
+#END
+----
+
+Dieser Ausschnitt zeigt nur Sperre und Auffangroute. Vor Freigabe zusätzlich
+alle Editor-, Jenkins-, Weiterleitungs- und Downloadrouten aus der Adresstabelle
+einrichten. Bei Jenkins den Prefix nicht mit `proxy-rewrite` entfernen.
+Jenkins selbst benötigt `JENKINS_OPTS=--prefix=/jenkins` und
+`JENKINS_URL=https://daten.so.ch/jenkins/`; weitere vorhandene Startoptionen
+erhalten. Editor-Prefix-Rewrite und HTML-Basispfad gemeinsam prüfen.
+
+=== TLS, Header, Downloads und Grenzen
+
+Die Referenz terminiert HTTPS am OpenShift-Router. Router → APISIX und
+APISIX → Anwendungen verwenden HTTP im zugriffsbeschränkten Clusternetz.
+Falls die Plattform interne TLS-Verschlüsselung verlangt, Routerroute,
+APISIX-Listener, Zertifikate und Probes zusammen anpassen.
+
+Der externe Host und das externe Schema müssen bei Jenkins ankommen:
+`Host` erhalten (`pass_host: pass`), `X-Forwarded-Host`, `X-Forwarded-Proto`
+und `X-Forwarded-Port` auf die ursprüngliche HTTPS-Adresse
+abstimmen. APISIX darf vom Router gesetzte Forwarded-Header nur aus dessen
+konkret konfigurierten `trusted_addresses` übernehmen; der Router muss
+clientseitig eingeschleuste Werte überschreiben. Login und Weiterleitungen
+dürfen keine internen Servicenamen, HTTP-Adressen oder falschen Ports ausgeben.
+
+Für öffentliche Dateien GET/HEAD und OPTIONS zulassen. CORS muss den Zugriff
+von `https://daten.so.ch` auf den Downloadhost ermöglichen; bei bewusst allgemein
+öffentlichen Dateien ist `Access-Control-Allow-Origin: *` ohne Credentials
+geeignet. `Range` zulassen und `ETag`, `Content-Length`, `Content-Type`,
+`Accept-Ranges`, `Content-Range` exponieren. Teilabrufe müssen HTTP 206 mit
+korrektem `Content-Range` liefern. CORS nicht pauschal für Jenkins aktivieren.
+
+Die lokale Referenz setzt `Cache-Control: no-store` für Bucketantworten und
+verwendet rclone ohne Verzeichniscache. Bei Produktion mindestens veraltete
+`current.json`-Antworten und veraltete Dateien unter festen Downloadadressen
+verhindern; kein Proxycache vor diese Pfade schalten. Versionierte Artefakte
+können später eine separat geprüfte Cache-Strategie erhalten.
+
+Der lokale Gateway-Grenzwert beträgt 256 MiB pro Request einschliesslich
+Multipart-Hülle; Jenkins-Upstream-Timeouts betragen 10 Sekunden für Connect und
+je 300 Sekunden für Send/Read. Diese Zeiten betreffen HTTP-Verbindungen, nicht
+die Gesamtlaufzeit eines asynchron gestarteten Lieferjobs. In Produktion
+maximale Liefergrösse, Uploadgeschwindigkeit, Router-Timeout, temporären
+Speicher und Anwendungslimits gemeinsam bemessen und protokollieren. HTTP 413
+bedeutet eine Grössenbegrenzung; 502/504 können auf Backend- oder Timeoutprobleme
+hinweisen. Ein Retry nach unklarer Uploadantwort darf keinen zweiten Lieferjob
+unbemerkt starten: zuerst Jenkins-Buildhistorie prüfen.
+
+=== Abnahme und Wiederanlauf
+
+. Gateway-Probe getrennt von den Backend-Probes einrichten. Die lokale `/gateway-health`-Route antwortet ohne Upstream; ihr HTTP 200 beweist weder Jenkins-Bereitschaft noch einen geladenen Sodata-Katalog. In Produktion diese Probe nur intern für die Plattform nutzen.
+. Editor mit Assets und Deep Link, alte Editoradresse, `/anlieferung`, Jenkins-Login und Formular sowie Portal-Suche und Downloads über HTTPS prüfen. Eine erlaubte CSV/XTF-Testlieferung muss über den Gateway-Zugang starten können.
+. Manifest, referenzierte Artefakte und Range-Zugriff vom Browser und vom GRETL-Prozess prüfen. CORS zusätzlich mit der tatsächlichen Portal-Origin testen.
+. GET auf `/admin/catalog/status`, POST auf `/admin/catalog/reload` und Zugriff auf `/actuator/health` müssen öffentlich 403 liefern. Status und Reload auch mit gültigem Token prüfen, ohne es zu protokollieren; APISIX darf keinen Upstream aufrufen. Interne Probes und authentisierter interner Reload bleiben erfolgreich.
+. TLS-Ablaufdatum, Gateway-5xx, Latenzen, Upstreamfehler und verworfene Konfigurationen überwachen. Access-/Error-Logs zentral erfassen, aber keine Authorization-, Cookie- oder Reload-Token-Header protokollieren.
+. Vor Änderungen Image-Digest und beide Konfigurationsdateien sichern. Nach Rollout Routing- und Sperrtests wiederholen. Bei Fehlern vorherige Konfigurationsversion und Image wiederherstellen; der Publikationsbestand wird dadurch nicht zurückgesetzt.
+
+APISIX muss während des Erstaufbaus ohne Sodata funktionieren: Der Lesedienst
+liefert für ein fehlendes Manifest 404, Jenkins und Editor bleiben erreichbar.
+Sodata wird erst mit gültigem Publikationsbestand gestartet. Ein Fehler der
+Portal-Auffangroute ist in dieser Phase kein Grund, den Gateway zu stoppen.
+
+Referenzen:
+link:https://apisix.apache.org/docs/apisix/3.14/deployment-modes/[APISIX-Betriebsarten],
+link:https://apisix.apache.org/docs/apisix/3.14/plugins/proxy-rewrite/[Prefix-Rewrite],
+link:https://apisix.apache.org/docs/apisix/3.14/plugins/redirect/[Weiterleitungen],
+link:https://www.jenkins.io/doc/book/system-administration/reverse-proxy-configuration-troubleshooting/[Jenkins hinter Reverse Proxy].

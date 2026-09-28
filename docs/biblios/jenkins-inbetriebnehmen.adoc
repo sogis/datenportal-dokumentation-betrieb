@@ -15,7 +15,8 @@ Voraussetzung ist die ausgefüllte Liste aus <<voraussetzungen>>.
 |Einstellung |Wert und Begründung
 |`JENKINS_RUNTIME_MODE` |`production`; aktiviert die Produktions-Pflichtprüfungen. Ist im Image voreingestellt.
 |`CASC_JENKINS_CONFIG` |Image-Default `/usr/share/jenkins/ref/casc_configs/jenkins.yaml`. Enthält Produktions-JCasC aus `datenportal-jenkins-dev/casc/jenkins-production.yaml`. Der Laufzeitmodus wählt diese Datei nicht selbst aus. Für Produktion besser die vollständige `jenkins.yaml` aus einem Secret read-only mounten und `CASC_JENKINS_CONFIG` auf den Mount-Pfad setzen, beispielsweise `/etc/jenkins/casc/jenkins.yaml`. So können direkte Benutzer-Einträge wie der Jenkins-Administrator geändert werden, ohne das Image neu zu bauen; danach ist ein Rollout bzw. Neustart erforderlich.
-|`JENKINS_URL`, `JENKINS_ADMIN_ADDRESS` |Öffentliche Jenkins-URL und administrative Kontaktadresse; beide erforderlich.
+|`JENKINS_OPTS` |`--prefix=/jenkins`; vorhandene weitere Optionen erhalten. APISIX leitet diesen Prefix unverändert weiter.
+|`JENKINS_URL`, `JENKINS_ADMIN_ADDRESS` |`https://daten.so.ch/jenkins/` und administrative Kontaktadresse; beide erforderlich. Der Lieferanteneinstieg `/anlieferung` wird durch APISIX weitergeleitet, siehe <<apisix>>.
 |`AD_DOMAIN`, `AD_SERVERS`, `AD_BIND_NAME` |AIO-Angaben zu Domain, Servern und technischem Bind-Konto.
 |`AD_BIND_PASSWORD` |Secret für AD-Abfragen. Persönliche Benutzer melden sich mit ihren eigenen AD-Konten an.
 |`THEMEN_REPO_URL`, `THEMEN_REPO_BRANCH` |HTTPS-Git-URL ohne eingebettete Credentials und freigegebener Branch, normalerweise `main`. Produktion verwendet `managed-git`, also den committed Remote-Stand.

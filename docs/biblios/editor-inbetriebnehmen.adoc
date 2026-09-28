@@ -7,7 +7,7 @@ Plattformbetrieb. Voraussetzung ist der geprüfte Publikationsbestand aus <<boot
 === Quelle und Bereitstellung festlegen
 
 . Freigegebene Image-Version bereitstellen. Der GUI-Einstieg zum Laden veröffentlichter Datenblätter ist derzeit deaktiviert. `VITE_METADATA_SOURCE_URL` muss deshalb für den aktuellen Betrieb nicht gesetzt werden. Die technische Unterstützung für `current.json` bleibt im Image erhalten und kann später wieder aktiviert werden; der Buildwert allein aktiviert die GUI-Funktion nicht.
-. Beim Image-Build `VITE_BASE_PATH=./` verwenden. Das Image liefert auf Port 8080 aus. Hinter einem öffentlichen Prefix entfernt das Gateway diesen vor Weiterleitung und setzt den passenden `X-FORWARDED-PREFIX`; NGINX bildet daraus den HTML-Basispfad. Direkt unter `/` ist kein Prefix nötig.
+. Beim Image-Build `VITE_BASE_PATH=./` verwenden. Öffentlich unter `/datenblatt-editor/` gemäss <<apisix>> bereitstellen. Das Image liefert auf Port 8080 aus. Hinter einem öffentlichen Prefix entfernt das Gateway diesen vor Weiterleitung und setzt den passenden `X-FORWARDED-PREFIX`; NGINX bildet daraus den HTML-Basispfad. Direkt unter `/` ist kein Prefix nötig.
 . Die separate Ämterquelle fachlich prüfen. Die Standardauslieferung enthält `mock-sources/offices.xtf`; sie stammt nicht aus `current.json`. `VITE_OFFICE_CATALOG_URL` ist eine Vite-Buildoption, wird aber derzeit nicht als eigenes Docker-Buildargument angeboten. Eine abweichende Quelle benötigt eine abgestimmte Image-Erstellung.
 . Die öffentliche HTTPS-Adresse bleibt für Jenkins und Sodata erforderlich. CORS für Manifest und referenzierte XTF wird erst für eine spätere Reaktivierung des Browser-Quellenimports benötigt. Keine S3-Schlüssel oder Git-Tokens an den Browser geben.
 

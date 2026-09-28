@@ -26,7 +26,7 @@ Plattformbetrieb. Voraussetzung sind geprüfte Manifest-/DuckDB-Artefakte aus
 === Reload clusterintern einrichten
 
 . Der Plattformbetrieb stellt einen internen Service auf Sodata-Port 8080 bereit und erlaubt den Zugriff vom ausführenden Jenkins-/GRETL-Prozess. Adresse: `http://<sodata-service>.<namespace>.svc.cluster.local:8080/admin/catalog/reload`.
-. Vor öffentlicher Freigabe `/admin/catalog/**` am öffentlichen Gateway/Proxy sperren. Eine interne URL im Jenkins allein sperrt keine öffentliche Route. Eine NetworkPolicy filtert Verbindungen, nicht HTTP-Pfade. Das konkrete Gateway-Verfahren ist vom Plattformbetrieb bereitzustellen und separat zu prüfen.
+. Vor öffentlicher Freigabe `/admin/catalog/**` am öffentlichen Gateway/Proxy sperren. Eine interne URL im Jenkins allein sperrt keine öffentliche Route. Eine NetworkPolicy filtert Verbindungen, nicht HTTP-Pfade. Die APISIX-Sperrroute aus <<apisix>> liefert unabhängig vom Token HTTP 403 und schliesst auch Actuator aus; vor Freigabe separat prüfen.
 . Der Anwendungsbetrieb lässt ein gemeinsames Reload-Secret bereitstellen. Sodata erhält es als `DATENPORTAL_ADMIN_RELOAD_TOKEN`, Jenkins/GRETL als `ORG_GRADLE_PROJECT_portalReloadToken`. Am GRETL-Container `ORG_GRADLE_PROJECT_portalReloadUrl` auf die interne Adresse setzen.
 . Nach Konfigurationsänderungen betroffene Pods erneuern. Im Lieferformular löst erst «Portal nach Veröffentlichung neu laden» (`RELOAD_PORTAL`) einen Aufruf aus; der Default ist aus. Eine erfolgreiche Publikation alleine garantiert deshalb keinen Reload.
 
@@ -58,7 +58,7 @@ SH
 
 . Antwort prüfen: Status nennt Quelle und Eintragszahlen; Reload bestätigt `success: true`. Danach Portalinhalt prüfen.
 . Intern ohne bzw. mit falschem Token muss der Admin-Aufruf HTTP 401 liefern. Bei nicht konfiguriertem Token liefert die Anwendung 503; dies ist keine funktionierende Reload-Anbindung.
-. Über den öffentlichen Portalzugang GET auf `/admin/catalog/status` und POST auf `/admin/catalog/reload` prüfen. Beide müssen bereits am Gateway abgewiesen werden, auch mit gültiger Authentisierung. Den Test mit gültigem Token nur über HTTPS und ohne Token-Protokollierung durchführen; die Anwendung darf nicht erreicht werden. Eine bloss von Sodata gelieferte 401-Antwort beweist keine öffentliche Sperre.
+. Über den öffentlichen Portalzugang GET auf `/admin/catalog/status` und POST auf `/admin/catalog/reload` prüfen. Beide müssen bereits an APISIX mit HTTP 403 abgewiesen werden, auch mit gültiger Authentisierung. Den Test mit gültigem Token nur über HTTPS und ohne Token-Protokollierung durchführen; die Anwendung darf nicht erreicht werden. Eine bloss von Sodata gelieferte 401-Antwort beweist keine öffentliche Sperre.
 
 Bei Reloadfehlern bleibt der bisherige Portal-Snapshot aktiv; S3 kann bereits
 aktualisiert sein. Nach Behebung den Reload wiederholen, nicht automatisch die

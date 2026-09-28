@@ -17,7 +17,9 @@
 = Betrieb Datenportal
 
 include::ueberblick.adoc[]
+include::lokal-kennenlernen.adoc[]
 include::voraussetzungen.adoc[]
+include::apisix-inbetriebnehmen.adoc[]
 include::jenkins-inbetriebnehmen.adoc[]
 include::publikationsbestand-initialisieren.adoc[]
 include::editor-inbetriebnehmen.adoc[]
