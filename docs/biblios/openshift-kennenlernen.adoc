@@ -1,0 +1,278 @@
+[[openshift-kennenlernen]]
+== Datenportal mit OpenShift/CRC kennenlernen
+
+Dieses optionale Kapitel zeigt das Zusammenspiel auf OpenShift anhand des
+link:https://codeberg.org/edigonzales/datenportal-stack[CRC-Stacks]. Es verwendet
+fertige Registry-Images und dieselben Anwendungsmanifeste wie die weiter unten
+beschriebene Betreiber-Vorlage. CRC ist ein lokaler OpenShift-Cluster; für den
+Durchlauf sind weder AIO-Zugang noch AD erforderlich. Jenkins verwendet einen
+lokalen Administrator mit zufällig erzeugtem Passwort.
+
+S3 wird hier vorausgesetzt: Ein separater Testbucket, ein Schreibzugang und
+öffentlich lesbare HTTPS-Adressen für Manifest und Downloads müssen vorhanden
+sein. Anders als im Compose-Einstieg wird Garage nicht mitinstalliert.
+Produktive Buckets oder produktive Zugangsdaten nicht für die Übung verwenden.
+
+[IMPORTANT]
+====
+Die derzeit fixierten Registry-Releases `sogis/datenportal-jenkins:0.1.0-2` und
+`sogis/datenportal-sodata:0.1.5` bieten nur `linux/amd64`. Ein CRC auf Apple Silicon
+verwendet ARM64 und benötigt vorher passende, ausserhalb von OpenShift
+veröffentlichte Images. Das Deploymentskript prüft alle Imagearchitekturen und
+bricht bei fehlender Unterstützung vor dem Anwendungsdeployment ab. Es startet
+keinen lokalen Build als Ersatz. Ein erfolgreicher Compose-Lauf mit
+amd64-Emulation belegt keine Lauffähigkeit im ARM64-Cluster.
+====
+
+=== Komponenten und Datenwege
+
+image::openshift-stack.svg["OpenShift: Browser über TLS-Router und APISIX zu den Anwendungen; Jenkins und Sodata verwenden externes S3",link="images/openshift-stack.svg"]
+
+Der Router nimmt HTTPS entgegen und leitet intern an APISIX auf Port 9080
+weiter. APISIX erreicht jede Anwendung über einen eigenen Kubernetes-Service
+auf Port 8080. Es gibt keinen gemeinsamen Netzwerkraum mit Jenkins und keine
+Loopback-Verbindung zwischen den Anwendungen. Nur APISIX erhält eine
+öffentliche OpenShift-Route.
+
+Jenkins/GRETL liest das Themenrepo aus Git, verarbeitet Lieferungen und schreibt
+mit Credentials in S3. Sodata liest das öffentliche Manifest samt Artefakten;
+der Browser lädt Downloads vom externen Lesedienst. Jenkins ruft den
+Sodata-Reload direkt intern mit Token auf. Der Editor bearbeitet lokale XTFs;
+der Export wird anschliessend über Jenkins angeliefert. Browser erhalten keine
+S3-Schreibschlüssel.
+
+OpenShift baut in diesem Stack weder Software noch Containerimages. Jenkins
+bezeichnet seine Datenverarbeitungen als «Builds»; diese führen GRETL aus und
+publizieren Daten. Die optionalen Skripte `build-images.sh` und `push-images.sh`
+im Stack-Repo betreffen ausschliesslich Entwicklung auf dem Arbeitsplatz.
+Sie gehören nicht zum folgenden Betriebsablauf.
+
+=== CRC und Konfiguration vorbereiten
+
+Benötigt werden CRC mit OpenShift-Preset, `oc`, Python 3, curl, Git und die
+Docker-CLI für Registry-Metadaten. Für den Registry-Start sind kein Docker-Daemon,
+Java, Maven oder lokale Anwendungs-Checkouts nötig. Registryzugriff und
+gegebenenfalls Registry-Anmeldung müssen eingerichtet sein.
+
+[source,bash]
+----
+git clone https://codeberg.org/edigonzales/datenportal-stack.git
+cd datenportal-stack
+----
+
+Die Plattform nach `local/crc/README.md` einrichten und starten. Das dort
+beschriebene Red-Hat-Pull-Secret ausserhalb des Repositories halten. Danach im
+Terminal `eval "$(crc oc-env)"` ausführen und mit den von CRC angezeigten Daten
+anmelden. Die CRC-Skripte akzeptieren ausschliesslich den Server
+`https://api.crc.testing:6443`; sie dürfen nicht für Produktion umgebaut werden.
+
+[source,bash]
+----
+python3 scripts/init-config.py
+----
+
+Das Skript legt `deploy/overlays/crc/config.env` und `secrets.env` mit Dateimodus
+0600 an, überschreibt aber keine vorhandenen Dateien. Beide sind ignoriert und
+gehören nicht in Git. In `config.env` S3-Endpoint, Region, Bucket, ACL,
+Downloadbasis und Manifestadresse sowie Themenrepo/Branch prüfen. In
+`secrets.env` die S3-Zugangsdaten ergänzen; erzeugtes Jenkins-Passwort und
+Reload-Token erhalten. Format `KEY=value`, ohne Shell-Quotes oder Expansion.
+Der aktuelle Vertrag verwendet Access/Secret Key ohne Session-Token.
+
+Manifest und referenzierte Dateien müssen aus Browser und Cluster erreichbar
+sein. CORS/Range und die tatsächliche öffentliche Lesefreigabe werden wie in
+<<voraussetzungen>> geprüft. Diese Angaben nicht nach der Erstpublikation
+beliebig ändern: Absolute Downloadadressen gelangen auch in die Artefakte.
+
+=== Mit Registry-Images starten
+
+Bei einem frischen Testbucket ohne Publikationsbestand:
+
+[source,bash]
+----
+./scripts/deploy-crc.sh --bootstrap
+oc -n datenportal get pods,pvc,route
+----
+
+Der Image-Preflight fragt die Registry ab, ohne Images zu bauen oder hochzuladen.
+Die festen Digests stehen zentral in `deploy/base/kustomization.yaml`.
+Das Bootstrap-Overlay startet Jenkins, Editor, Dokumentation und APISIX;
+Sodata bleibt auf null Replikaten. Die Portaladresse ist zunächst noch nicht
+funktionsfähig. Ein bereits laufendes Sodata verhindert den Bootstrap-Aufruf.
+
+Bei einem vorhandenen gültigen Manifest direkt `./scripts/deploy-crc.sh`
+verwenden. Dieser normale Aufruf prüft den Bestand und betreibt Sodata mit einer
+Instanz. Auch spätere Updates verwenden diesen Aufruf ohne `--bootstrap`.
+
+Alle folgenden Pfade liegen unter `https://datenportal.apps-crc.testing`:
+
+[cols="2,3",options="header"]
+|===
+|Pfad |Verhalten
+|`/anlieferung` |302 zum Lieferformular `/jenkins/gretl-datenportal/`.
+|`/jenkins/` |Jenkins mit erhaltenem Prefix.
+|`/datenblatt-editor/` |Editor; Prefix zum Backend entfernen und `X-Forwarded-Prefix` setzen.
+|`/metadaten-editor` und Unterpfade |308 auf den entsprechenden neuen Editorpfad.
+|`/dokumentation/` |Dokumentation aus dem fixierten Image; Prefix entfernen.
+|`/` |Sodata nach erfolgreicher Publikation und Start.
+|`/admin`, `/actuator`, `/apisix/admin` sowie Unterpfade |403 für alle HTTP-Methoden; keine Weiterleitung ans Backend.
+|===
+
+Weiterleitungen erhalten Queryparameter. Die Dokumentation im Image enthält
+den Stand dieses Releases, nicht automatisch die neuesten lokalen Quellen.
+Downloads liegen weiterhin auf der externen HTTPS-Adresse, nicht unter einer
+zusätzlichen CRC-Bucketroute.
+
+[source,bash]
+----
+curl -fsS https://datenportal.apps-crc.testing/gateway-health
+curl -sS -o /dev/null -D - 'https://datenportal.apps-crc.testing/anlieferung?probe=1'
+curl -sS -o /dev/null -D - https://datenportal.apps-crc.testing/datenblatt-editor
+curl -sS -X POST -o /dev/null -w '%{http_code}\n' \
+  https://datenportal.apps-crc.testing/admin/catalog/reload
+----
+
+Erwartet: `ok`, 302 mit erhaltenem Queryparameter, 308 auf die Slash-Adresse und
+403. Bei lokaler CA `CURL_CA_BUNDLE` auf das bereitgestellte CA-Zertifikat setzen;
+TLS-Prüfung nicht abschalten. Die Gateway-Probe prüft keine Backends.
+Editor und Dokumentation samt Assets zusätzlich im Browser öffnen.
+
+=== Seed, Erstpublikation und Testlieferung
+
+. Jenkins unter `/jenkins/` öffnen und als `admin` mit dem Passwort aus `secrets.env` anmelden.
+. Den Seed `gretl-datenportal-seed` erfolgreich ausführen; erzeugte Organisationsjobs prüfen. Es gilt der konfigurierte Remote-Branch. Nicht committete lokale Änderungen werden nicht verwendet.
+. Manifestadresse prüfen: Nur ein nachweislich fehlender Bestand mit HTTP 404 erlaubt die Erstinitialisierung. Bei 403 oder vorhandenen/beschädigten Manifesten zuerst die Ursache klären.
+. In Jenkins Quiet Down aktivieren und laufende Jobs abwarten. Gültige Datenblätter und `shared/data/offices.xtf` im erfolgreichen Seeder-Checkout voraussetzen.
+
+Die vollständige Initialisierung erfolgt in einer eigenen beschreibbaren Kopie
+im Jenkins-PVC. Am Arbeitsplatz ausführen:
+
+[source,bash]
+----
+oc -n datenportal exec -i deployment/jenkins -c jenkins -- bash -s <<'SH'
+set -euo pipefail
+manifest_status=$(curl -sS -o /dev/null -w '%{http_code}' \
+  "$ORG_GRADLE_PROJECT_publicationManifestUrl")
+if [ "$manifest_status" != 404 ]; then
+  echo "Keine Erstinitialisierung: Manifest liefert HTTP $manifest_status." >&2
+  exit 1
+fi
+publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
+tar -C /var/jenkins_home/gretl-datenportal/topic-repo \
+  --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
+  -cf - . | tar -C "$publication_init_dir" -xf -
+cd "$publication_init_dir"
+./shared/bin/gradlew-java17.sh --no-daemon \
+  -I "$PWD/shared/gradle/init.gradle" initializePublication \
+  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false
+printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
+SH
+----
+
+`report.json`, Manifest und referenzierte Dateien prüfen, dann Quiet Down
+aufheben. Bei Fehlern keine erneute Initialisierung über einen inzwischen
+vorhandenen Bestand ausführen. Details und alternative Übernahme in <<bootstrap>>.
+
+Für dieselbe Testlieferung wie beim Compose-Einstieg das Pilotdaten-Repository
+neben dem Stack klonen:
+
+[source,bash]
+----
+git clone https://codeberg.org/edigonzales/datenportal-pilot-daten.git ../datenportal-pilot-daten
+----
+
+Unter `/anlieferung` Organisation `statistikdienst` und Thema
+`ch.so.bevoelkerung.altersstruktur` wählen. CSV
+`../datenportal-pilot-daten/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv`
+anliefern, Ausgabe `2025`, Metadaten leer lassen. Das Beispiel setzt dieses
+Thema und sein gültiges Datenblatt im konfigurierten Remote-Branch voraus.
+«Portal nach Veröffentlichung neu laden» zunächst ausgeschaltet lassen.
+Erfolgreichen Lieferjob, Bericht und neue `releaseId` prüfen.
+
+[source,bash]
+----
+./scripts/start-portal.sh
+./scripts/smoke-test.sh
+----
+
+Im Portal nach «Altersstruktur» suchen, Ausgabe 2025 öffnen, Download und
+«Erkunden» prüfen. Bei einer weiteren Testlieferung den Reload einschalten:
+Jenkins und Sodata erhalten dasselbe Token aus `stack-secrets`; die Reload-URL
+ist intern `http://sodata:8080/admin/catalog/reload`. Danach muss das Portal die
+neue Generation zeigen, während öffentliche Reload-Aufrufe weiterhin 403 liefern.
+
+=== Anhalten, Aktualisieren und Diagnose
+
+[source,bash]
+----
+oc -n datenportal get pods,pvc,route
+oc -n datenportal logs deployment/apisix --tail=100
+oc -n datenportal logs deployment/jenkins -c jenkins --tail=100
+oc -n datenportal logs deployment/sodata --tail=100
+./local/crc/stop.sh
+----
+
+CRC-Stopp erhält Cluster und Jenkins-PVC. Nach erneutem CRC-Start und Anmeldung
+Bereitschaft prüfen; weder Bootstrap noch Erstinitialisierung wiederholen.
+Änderungen mit `./scripts/deploy-crc.sh` ausrollen. ConfigMap-Hashes lösen neue
+Pods aus. Bei Secret-Änderungen betroffene Deployments gezielt neu starten,
+beim Reload-Token sowohl Jenkins als auch Sodata. Ein Update kann einen Rollout
+auslösen, setzt Sodata aber nicht mehr auf null Replikate.
+
+[cols="2,4",options="header"]
+|===
+|Beobachtung |Prüfung
+|Imagearchitektur fehlt |Passendes Release ausserhalb von OpenShift veröffentlichen und Image-Referenz aktualisieren. Kein automatischer Build-Fallback.
+|Pod startet nicht |`oc describe pod`, Events, Image-Pull-Berechtigung, SCC und Volume-Rechte prüfen.
+|Jenkins wartet auf Speicher |PVC/StorageClass und freien Speicher prüfen; zu wenig Speicher kann auch den Jenkins-Executor sperren.
+|Gateway 502/504 |Backend-Service, DNS, Probes und Logs prüfen. Gateway-Health allein genügt nicht.
+|Fehlendes Manifest |Vor Erstpublikation erwartet; nach erfolgreicher Initialisierung Manifest und Artefakte prüfen.
+|Veralteter Portalstand |Publikationsbericht und internen Reload prüfen. Kein externes `/admin` freigeben.
+|===
+
+=== YAML-Dateien für den Betreiber übernehmen
+
+Die ausführbare Quelle bleibt das Stack-Repository. Es gibt keine zweite
+Manifestkopie in diesem Buch. Die
+link:https://codeberg.org/edigonzales/datenportal-stack/src/branch/main/deploy/overlays/operator/README.md[Betreiber-Anleitung]
+und das Overlay `deploy/overlays/operator` beschreiben die konkreten Dateien,
+Secret-Schlüssel und Ausrollbefehle.
+
+[cols="2,3,3",options="header"]
+|===
+|Bereich |CRC |Betreiber
+|Anwendungen |Gemeinsame Basis |Dieselben Deployments, Services und Gateway-Regeln.
+|Anmeldung |Lokaler Administrator |Jenkins `production`, AD mit TLS, Administrator-Benutzer und `authenticated`; kein lokaler Notfall-Login.
+|JCasC |Generierte ConfigMap |Externes Secret `jenkins-production-jcasc`, vollständige anpassbare JCasC.
+|Git |Öffentliches Remote-Themenrepo |HTTPS-Credential per Secret und JCasC; Git-Rückschreiben zunächst deaktiviert.
+|Hosts |CRC-Testhostname |Bestätigter Portalhost und Router-Zertifikat; `JENKINS_URL` passend dazu.
+|Speicher |Default-StorageClass, 10 GiB |Freigegebene StorageClass, Kapazität und Sicherungsverfahren.
+|S3/Downloads |Externer Testbucket |Produktiver S3-Schreibendpoint und separater öffentlicher Lesedienst.
+|Images |Feste Registry-Digests |Freigegebene Digests für Zielarchitektur; kein Cluster-Build.
+|===
+
+Vor der Übernahme Namespace, Konfigurationsdatei, Host und Storage-Patch
+anpassen. AD-Truststore, AD-/Git-/S3-/Reload-Secrets und JCasC über die
+betriebliche Secret-Verwaltung bereitstellen. Die mitgelieferte JCasC wurde
+gegen das veröffentlichte Jenkins-Image `0.1.0-2` abgeglichen; ältere lokale
+Jenkins-Quellen können davon abweichen. Bei Imagewechsel Vertrag erneut prüfen.
+
+Danach aus dem Stack-Verzeichnis, mit dem angepassten Namespace:
+
+[source,bash]
+----
+kubectl kustomize deploy/overlays/operator >/dev/null
+python3 scripts/check-images.py deploy/overlays/operator --architecture amd64
+oc -n datenportal-production apply --dry-run=server -k deploy/overlays/operator
+----
+
+Nur bei Erstaufbau `operator-bootstrap` anwenden; nach kontrollierter
+Publikation und Manifestprüfung das normale `operator`-Overlay anwenden.
+Die CRC-Skripte werden nicht für Produktion verwendet. Die Vorlage setzt eine
+Sodata-Instanz voraus. Netzwerkregeln, Zertifikate, maximale Liefergrössen,
+Monitoring, Sicherung und Wiederherstellung bleiben mit der Zielplattform
+abzunehmen. Die weitere produktive Durchführung beginnt in <<voraussetzungen>>.
+
+Der aktuelle Prüfstand steht im Stack-Repository unter `docs/validation.md`.
+Lokale Routingtests und gerenderte YAML-Dateien ersetzen keine vollständige
+Abnahme mit AD, S3 und produktivem OpenShift.

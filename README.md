@@ -7,6 +7,12 @@ Optionaler Einstieg: **Datenportal lokal kennenlernen** führt mit Docker Compos
 und vorhandenen Images vom Start bis zu einer Testpublikation. Eine Grafik und
 konkrete URLs zeigen insbesondere das Zusammenspiel über APISIX.
 
+Der zweite optionale Einstieg **Datenportal mit OpenShift/CRC kennenlernen**
+verwendet fertige Images, externes S3 und die gemeinsamen Kustomize-Manifeste
+aus `datenportal-stack`. CRC bleibt ohne AD/AIO nutzbar; ein getrenntes
+Betreiber-Overlay ergänzt AD, Secrets und Produktionsparameter. Die aktuellen
+Jenkins-/Sodata-Releases sind nur amd64; ARM64 benötigt passende Releases.
+
 Produktiver Aufbau der Dokumentation: Voraussetzungen → APISIX und öffentliche Zugänge → Jenkins und Seed → Publikationsbestand
 initialisieren → Editor und Sodata → Gesamtabnahme. Danach dienen die Kapitel
 «Laufender Betrieb» und «Störungen beheben» als Nachschlagewerk.
@@ -33,3 +39,9 @@ Registry-Start mit expliziten veröffentlichten Image-Tags, Gateway-Zugänge und
 Seed geprüft. Die vollständige Testpublikation bleibt wegen zu wenig freiem
 Docker-Speicher in der Testumgebung noch abzunehmen. Das Protokoll nennt die
 verwendeten Quellstände, Image-Digests und offenen Prüfungen.
+
+## Prüfstand des OpenShift-Einstiegs
+
+[Prüfprotokoll CRC/OpenShift vom 28.09.2026](pruefprotokolle/2026-09-28-openshift-stack.md):
+Manifeste, Registryarchitekturen, Gateway und statische Anwendungen lokal geprüft.
+Cluster-, S3- und AD-Abnahme bleiben ausdrücklich offen.

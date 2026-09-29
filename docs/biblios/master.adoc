@@ -18,6 +18,7 @@
 
 include::ueberblick.adoc[]
 include::lokal-kennenlernen.adoc[]
+include::openshift-kennenlernen.adoc[]
 include::voraussetzungen.adoc[]
 include::apisix-inbetriebnehmen.adoc[]
 include::jenkins-inbetriebnehmen.adoc[]

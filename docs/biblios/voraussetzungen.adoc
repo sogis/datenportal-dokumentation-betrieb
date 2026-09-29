@@ -16,7 +16,7 @@ organisatorische Zuständigkeit beim AIO; verantwortliche Personen vor Beginn be
 === Angaben vor Beginn erfassen
 
 . Namespace sowie Deployment-, Service- und Container-Namen erfassen. `oc` wird auf einem administrativen Arbeitsplatz mit Namespace-Zugriff ausgeführt.
-. Feste freigegebene Tags oder Digests für `sogis/datenportal-jenkins`, `sogis/datenportal-datenblatt-editor`, `apache/apisix` und `sogis/datenportal-sodata` festlegen; Versionen auf das Themenrepo abstimmen.
+. Feste freigegebene Tags oder Digests für `sogis/datenportal-jenkins`, `sogis/datenportal-datenblatt-editor`, `sogis/datenportal-dokumentation`, `apache/apisix` und `sogis/datenportal-sodata` festlegen; Versionen auf das Themenrepo abstimmen.
 . AD-Domain, Server, Bind-Identität, Passwort und Vertrauenskette beschaffen; Benutzer-ID des Administrators bestätigen.
 . Git-URL, Branch und gegebenenfalls Token beschaffen. Lesen und Rückschreiben getrennt freigeben.
 . Bucket-Name, S3-Endpoint, Region, Schreibzugang und öffentliche Basisadresse vom Speicherbetrieb übernehmen.

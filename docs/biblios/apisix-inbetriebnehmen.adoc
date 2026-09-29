@@ -3,12 +3,13 @@
 
 Zuständig: Plattformbetrieb für Gateway, Router, Zertifikate und Netz;
 Anwendungsbetrieb für Zielservices, Anwendungspfade und Funktionsprüfung.
-Apache APISIX vermittelt die öffentlichen HTTP-Zugriffe an Editor, Jenkins,
+Apache APISIX vermittelt die öffentlichen HTTP-Zugriffe an Editor, Dokumentation, Jenkins,
 Sodata und den öffentlichen Dateilesedienst. Anmeldung und Jobrechte bleiben
 bei Jenkins; APISIX ersetzt weder AD noch die Tokenprüfung von Sodata.
 
 Ein geführter lokaler Durchlauf mit Erklärung der Gateway-Wege steht in
-<<lokal-kennenlernen>>.
+<<lokal-kennenlernen>>; die OpenShift-Manifeste und der CRC-Durchlauf stehen in
+<<openshift-kennenlernen>>.
 
 Dieses Kapitel beschreibt eine Produktions-Zielkonfiguration. Der lokal geprüfte
 Dev-Stack liefert eine ausführbare Referenz für Routing und Prefix-Verhalten,
@@ -22,6 +23,7 @@ aber keinen Nachweis eines produktiven OpenShift-Deployments. S3-Dienst und
 |Öffentlicher Zugang |Ziel |Behandlung durch APISIX
 |`https://daten.so.ch/` und übrige Portalpfade |Sodata, Port 8080 |Pfad erhalten; Auffangroute mit niedrigster Priorität.
 |`/datenblatt-editor/` |Editor, Port 8080 |Prefix entfernen, `X-Forwarded-Prefix: /datenblatt-editor` setzen.
+|`/dokumentation/` |Dokumentationsimage, Port 8080 |Prefix entfernen, `X-Forwarded-Prefix: /dokumentation` setzen; `/dokumentation` mit 308 und erhaltenen Queryparametern auf die Slash-Adresse umleiten.
 |`/datenblatt-editor` |Slash-Adresse |HTTP 308, Queryparameter erhalten.
 |`/metadaten-editor` und Unterpfade |Entsprechender neuer Editorpfad |HTTP 308; Unterpfad und Queryparameter erhalten.
 |`/anlieferung` und `/anlieferung/` |`/jenkins/gretl-datenportal/` |HTTP 302 zum Anlieferungsformular; Anmeldung erfolgt in Jenkins.
@@ -82,6 +84,11 @@ noch keine gültige APISIX-Plugin-Konfiguration.
 
 Die vollständige lokale Vorlage liegt in
 link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/services/apisix/apisix.yaml[services/apisix/apisix.yaml].
+Die OpenShift-Variante mit Service-DNS, Dokumentationsroute und Edge-TLS-Regel
+liegt im link:https://codeberg.org/edigonzales/datenportal-stack/src/branch/main/deploy/base/apisix/apisix.yaml[CRC-/Betreiber-Stack].
+Dort setzt eine globale Regel die von APISIX verwendeten Forwarded-Variablen
+auf HTTPS/443; ein `proxy-rewrite`-Header allein genügt dafür nicht. Diese
+Variante setzt ausschliessliche Veröffentlichung über die Edge-TLS-Route voraus.
 Für Produktion Hosts und Upstreams explizit ergänzen: Anwendungshost
 `daten.so.ch`, separater Downloadhost und deren freigegebene Backendservices.
 Unbekannte Hosts dürfen nicht von einer hostlosen Portalroute bedient werden.

@@ -28,6 +28,8 @@ Katalog, Downloads und «Erkunden» bereit. Der technische Browser-Import über
 Zum praktischen Einstieg bietet <<lokal-kennenlernen>> einen optionalen lokalen
 Durchlauf mit Docker Compose und vorhandenen Images bis zur Testpublikation.
 Dort wird Garage mit einem Testbucket bereitgestellt.
+<<openshift-kennenlernen>> zeigt anschliessend denselben Ablauf auf CRC/OpenShift
+mit externem S3 und wiederverwendbaren Betreiber-Manifesten.
 
 Für den produktiven Aufbau ab <<voraussetzungen>> die Kapitel bis zur
 Gesamtabnahme in Reihenfolge durchlaufen; der lokale Durchlauf ist dafür keine

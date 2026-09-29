@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="700" viewBox="0 0 1060 700" role="img" aria-labelledby="title desc">
+<title id="title">Datenportal auf OpenShift</title>
+<desc id="desc">Browser greifen über den TLS-Router und APISIX auf Editor, Dokumentation, Jenkins und Sodata zu. Jenkins liest Git und schreibt in externes S3. Sodata und Browser lesen die öffentliche Auslieferung. CRC verwendet lokale Anmeldung, das Betreiber-Overlay AD.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10Z" fill="#47647c"/></marker></defs>
+<style>text{font-family:Arial,sans-serif;fill:#19354b;font-size:16px}.title{font-size:25px;font-weight:bold}.head{font-size:18px;font-weight:bold}.small{font-size:14px}.box{fill:#fff;stroke:#95acbd;stroke-width:1.5;rx:10}.line{fill:none;stroke:#47647c;stroke-width:2;marker-end:url(#arrow)}.muted{fill:#466176}</style>
+<rect width="1060" height="700" rx="16" fill="#f4f7fa"/>
+<text x="30" y="42" class="title">Datenportal auf OpenShift</text>
+<text x="30" y="70" class="muted">Fertige Images betreiben · Daten mit Jenkins/GRETL publizieren</text>
+<rect x="235" y="104" width="565" height="530" rx="16" fill="#e6eef4" stroke="#b9cad7"/>
+<text x="255" y="134" class="head">OpenShift: CRC oder Betreiberplattform</text>
+<rect class="box" x="30" y="165" width="150" height="75"/>
+<text x="53" y="197" class="head">Browser</text><text x="53" y="222" class="small">Portal · Lieferung</text>
+<rect class="box" x="260" y="165" width="205" height="75"/>
+<text x="280" y="197" class="head">OpenShift-Router</text><text x="280" y="222" class="small">TLS / öffentliche Route</text>
+<path class="line" d="M180 202H260"/><text x="190" y="184" class="small">HTTPS</text>
+<rect class="box" x="540" y="165" width="230" height="75"/>
+<text x="560" y="197" class="head">APISIX</text><text x="560" y="222" class="small">Routing · Sperren · Prefix</text>
+<path class="line" d="M465 202H540"/><text x="474" y="184" class="small">9080</text>
+<path d="M655 240V271H310V294 M655 271H680V294 M492 271V294" fill="none" stroke="#47647c" stroke-width="2"/>
+<rect class="box" x="255" y="294" width="150" height="77"/>
+<text x="271" y="326" class="head">Editor</text><text x="271" y="351" class="small">Lokale XTF-Dateien</text>
+<rect class="box" x="425" y="294" width="165" height="77"/>
+<text x="439" y="326" class="head">Dokumentation</text><text x="439" y="351" class="small">Statische Inhalte</text>
+<rect class="box" x="610" y="294" width="165" height="77"/>
+<text x="626" y="326" class="head">Sodata</text><text x="626" y="351" class="small">Portal / Katalog</text>
+<text x="272" y="402" class="small">Eigene Services, jeweils Port 8080</text>
+<path class="line" d="M550 240V260H242V459H265"/>
+<rect class="box" x="265" y="430" width="300" height="90"/>
+<text x="285" y="460" class="head">Jenkins / GRETL</text><text x="285" y="486">Seed · Validierung · Publikation</text><text x="285" y="509" class="small">/jenkins · Einstieg /anlieferung</text>
+<path class="line" d="M565 455H692V371"/><text x="594" y="433" class="small">Reload + Token</text>
+<rect class="box" x="290" y="559" width="245" height="50"/>
+<text x="309" y="590">Jenkins-PVC · dauerhaft</text><path class="line" d="M411 520V559"/>
+<rect class="box" x="835" y="165" width="200" height="90"/>
+<text x="851" y="197" class="head">Externer Lesedienst</text><text x="851" y="223" class="small">Manifest · Downloads</text><text x="851" y="244" class="small">Öffentliches HTTPS</text>
+<path class="line" d="M775 327H815V210H835"/><text x="820" y="291" class="small">lesen</text>
+<rect class="box" x="835" y="430" width="200" height="90"/>
+<text x="853" y="461" class="head">Externes S3</text><text x="853" y="487" class="small">Test- oder Betriebsbucket</text><text x="853" y="508" class="small">Authentifizierte Schreib-API</text>
+<path class="line" d="M565 491H835"/><text x="631" y="515" class="small">publizieren</text>
+<path class="line" d="M930 430V255"/><text x="940" y="355" class="small">ausliefern</text>
+<rect class="box" x="30" y="430" width="150" height="90"/>
+<text x="48" y="462" class="head">Themenrepo</text><text x="48" y="486" class="small">Git / Remote-Branch</text><path class="line" d="M180 475H265"/>
+<path class="line" d="M105 165V96H935V165"/><text x="833" y="88" class="small">Browser lädt Dateien direkt</text>
+<text x="30" y="669" class="small">CRC: lokaler Administrator · Betreiber: AD und externe Secrets · Keine Software- oder Image-Builds im Cluster</text>
+</svg>
