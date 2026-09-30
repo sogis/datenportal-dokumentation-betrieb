@@ -53,6 +53,12 @@ bleibt als historischer Nachweis des früheren Ablaufs erhalten.
 
 ## Prüfstand des OpenShift-Einstiegs
 
+[Leserführung CRC → Zielcluster vom 30.09.2026](pruefprotokolle/2026-09-30-crc-cluster-uebergang.md):
+Erstaufbau und Wiederanlauf getrennt, eigenständigen Clusteraufbau und
+Jenkins-/Git-Zugänge präzisiert. Dokumentation gerendert und visuell geprüft;
+18 Stack-Tests erfolgreich. Die erneute Live-Prüfung von CA-Export und HTTPS
+bleibt wegen der nicht erreichbaren CRC-API bzw. Route offen.
+
 [Abgleich Kapitel 2/3 vom 30.09.2026](pruefprotokolle/2026-09-30-kapitel-2-3-stack.md):
 gemeinsame Multiarch-Images, isolierte Jenkins-/Credential-Prüfung, Remote-Seed,
 Gateway-/Asset-Tests sowie CRC mit externem S3: Erstpublikation, CSV-Lieferung,

@@ -17,6 +17,7 @@ Voraussetzung ist die ausgefüllte Liste aus <<voraussetzungen>>.
 |`CASC_JENKINS_CONFIG` |Image-Default `/usr/share/jenkins/ref/casc_configs/jenkins.yaml`. Enthält Produktions-JCasC aus `datenportal-jenkins-dev/casc/jenkins-production.yaml`. Der Laufzeitmodus wählt diese Datei nicht selbst aus. Für Produktion besser die vollständige `jenkins.yaml` aus einem Secret read-only mounten und `CASC_JENKINS_CONFIG` auf den Mount-Pfad setzen, beispielsweise `/etc/jenkins/casc/jenkins.yaml`. So können direkte Benutzer-Einträge wie der Jenkins-Administrator geändert werden, ohne das Image neu zu bauen; danach ist ein Rollout bzw. Neustart erforderlich.
 |`JENKINS_OPTS` |`--prefix=/jenkins`; vorhandene weitere Optionen erhalten. APISIX leitet diesen Prefix unverändert weiter.
 |`JENKINS_URL`, `JENKINS_ADMIN_ADDRESS` |`https://daten.so.ch/jenkins/` und administrative Kontaktadresse; beide erforderlich. Der Lieferanteneinstieg `/anlieferung` wird durch APISIX weitergeleitet, siehe <<apisix>>.
+|`JENKINS_ADMIN_USER` |In der Betreiber-JCasC aus dem Stack die AD-Benutzer-ID mit `Overall/Administer`. Den Beispielwert der Vorlage durch die vorgesehene Identität ersetzen. Die Variable wirkt nur, wenn die verwendete JCasC sie referenziert; bei einer anderen JCasC deren Administrator-Eintrag entsprechend anpassen.
 |`AD_DOMAIN`, `AD_SERVERS`, `AD_BIND_NAME` |AIO-Angaben zu Domain, Servern und technischem Bind-Konto.
 |`AD_BIND_PASSWORD` |Secret für AD-Abfragen. Persönliche Benutzer melden sich mit ihren eigenen AD-Konten an.
 |`THEMEN_REPO_URL`, `THEMEN_REPO_BRANCH` |HTTPS-Git-URL ohne eingebettete Credentials und freigegebener Branch, normalerweise `main`. Produktion verwendet `managed-git`, also den committed Remote-Stand.
@@ -105,7 +106,8 @@ oder Git-Secret ist ein Rollout beziehungsweise Neustart erforderlich, damit
 Jenkins die Werte und die Konfiguration neu lädt. Ein Image-Neubau ist dafür
 nicht nötig.
 
-Alternativ kann das Credential nach der Anmeldung als `bjsvwzie` manuell in
+Alternativ kann das Credential nach der Anmeldung als der in der JCasC
+berechtigte Administrator manuell in
 Jenkins angelegt werden: *Jenkins verwalten* → *Credentials* → *System* →
 *Global credentials* → *Add Credentials*. Als Typ «Username with password»,
 als ID exakt `themenrepo-git`, als Benutzername die Git-Identität und als
@@ -152,15 +154,16 @@ Container; ein unveränderter Prozess übernimmt sie nicht.
 === Anmeldung und Seed prüfen
 
 . Deployment starten; Startup-Log auf fehlende Pflichtwerte, JCasC- und TLS-Fehler prüfen.
-. Als `bjsvwzie` über AD anmelden und Jenkins-Administration öffnen. Dieser Benutzer erhält direkt `Overall/Administer`; weitere Administratoren werden als zusätzliche `user`-Einträge in der Produktions-JCasC gepflegt.
+. Als der in der JCasC berechtigte Administrator über AD anmelden und Jenkins-Administration öffnen. Im Betreiber-Overlay ist dies die mit `JENKINS_ADMIN_USER` konfigurierte AD-Benutzer-ID. Dieser Benutzer erhält direkt `Overall/Administer`; weitere Administratoren werden als zusätzliche `user`-Einträge in der Produktions-JCasC gepflegt. Das lokale CRC-Konto `admin` ist kein Zugang zu dieser AD-Konfiguration.
 . Ein normaler AD-Benutzer erhält über Jenkins' eingebauten Prinzipal `authenticated` nur `Overall/Read`. Dafür sind keine AIO-Gruppen und keine Gruppen-ENV-Variablen nötig. Anonymer Zugriff wird dadurch nicht freigegeben.
 . Job `gretl-datenportal-seed` prüfen: Das Plugin erstellt ihn und plant bei konfiguriertem Repository einen ersten Lauf, sofern noch kein Lauf existiert. Danach läuft er über `H/15 * * * *` alle 15 Minuten; nicht bei jedem Neustart zusätzlich sofort.
 . Erfolgreichen Seed und erwartete Organisationsjobs prüfen. Der Checkout liegt unter `/var/jenkins_home/gretl-datenportal/topic-repo`. Bei Fehlern Ursache beheben und als Administrator manuell starten oder den Timer abwarten.
 . Mit einem normalen Testbenutzer prüfen: Nur zugewiesene Jobs sichtbar; `read` erlaubt Lesen, `build` auch Starten. Benutzer-IDs in `shared/gretl-datenportal-teams.yaml` müssen zur Jenkins-Identität passen. Das Seeder-Team erhält nach erfolgreicher Synchronisation Lese-/Startrechte auf den Seeder, keine Administration.
 
 Ergebnis: Jenkins ist erreichbar, AD funktioniert, Seed ist erfolgreich und
-die Jobs sind korrekt berechtigt. Noch keine Lieferjobs starten: Der
-Publikationsbestand wird im nächsten Kapitel initialisiert.
+die Jobs sind korrekt berechtigt. Noch keine Lieferjobs starten: Im nächsten
+Kapitel den vorhandenen Publikationsbestand erhalten und prüfen oder
+ausschliesslich einen neuen Bestand einmalig initialisieren.
 
 Bei AD-Ausfall bietet diese Konfiguration keinen lokalen Notfall-Login.
 Wiederherstellung der Anbindung ist mit dem Plattformbetrieb zu koordinieren.
