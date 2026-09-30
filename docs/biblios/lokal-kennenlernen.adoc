@@ -11,17 +11,23 @@ Der link:https://codeberg.org/edigonzales/datenportal-dev-stack[Dev-Stack] verwe
 Docker Compose und bereits gebaute, versionsgetaggte Containerimages.
 Die Registry-Variante benötigt auf dem Arbeitsplatz nur den Dev-Stack-Checkout;
 Jenkins bezieht das Themenrepo selbst aus Git. Garage samt Testbucket ist
-hier enthalten. Die Umgebung verwendet HTTP und lokale Jenkins-Testkonten statt
-AD; sie gehört auf einen geschützten Testrechner, nicht an einen öffentlich
-erreichbaren Anschluss. Die Compose-Ports sind standardmässig auch über andere
-Netzwerkschnittstellen erreichbar. Produktive Daten und Zugangsdaten gehören
-nicht in diesen Ablauf.
+hier enthalten. Die Umgebung verwendet HTTP und lokale Jenkins-Testkonten statt AD.
+
+[WARNING]
+====
+Produktive Daten und Zugangsdaten gehören nicht in diesen Ablauf. Die Umgebung
+gehört auf einen geschützten Testrechner, nicht an einen öffentlich erreichbaren
+Anschluss. Die Compose-Ports sind standardmässig auch über andere
+Netzwerkschnittstellen erreichbar.
+====
 
 [NOTE]
 ====
 Die Anleitung verwendet Jenkins `0.1.0-3`, das native Sodata-Image `0.1.11`
-und Dokumentation `0.1.18`. Image-Versionen, Themenrepo und Jenkins-Konfiguration
-müssen zusammenpassen. Der aktuelle Image-Prüfstand steht im
+und Dokumentation `0.1.18`, dazu Datenblatt-Editor `0.1.4` und APISIX
+`3.14.1-debian`. Dieselben Anwendungsimages werden in <<openshift-kennenlernen>>
+verwendet. Image-Versionen, Themenrepo und Jenkins-Konfiguration müssen
+zusammenpassen. Der aktuelle Image-Prüfstand steht im
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-sodata-0.1.11.md[Prüfnachweis für Sodata 0.1.11].
 Der frühere vollständige Stackdurchlauf bleibt im
 link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll vom 30.09.2026] dokumentiert.
@@ -74,11 +80,14 @@ Rückschreiben ist ausgeschaltet. Die Beispiel-CSV und das Datenblatt werden
 später einzeln heruntergeladen. Alle weiteren Shellbefehle werden im
 Verzeichnis `datenportal-dev-stack` ausgeführt.
 
+[IMPORTANT]
+====
 Keine zweite Instanz neben einem bereits laufenden Dev-Stack mit denselben
 Ports und demselben Compose-Projektnamen starten. Ein vorhandener Stack ist
-ausserdem kein frischer Publikationsbestand.
+kein frischer Publikationsbestand.
+====
 
-=== Mit vorhandenen Images starten
+=== Mit Registry-Images starten
 
 Bei einem frischen Checkout direkt starten. `up.sh` erzeugt die lokale
 Konfiguration automatisch mit den veröffentlichten Image-Tags; eine manuelle
@@ -142,14 +151,22 @@ Das Skript erzeugt einmalig die ignorierte `.env` und
 `services/garage/garage.toml` mit lokalen Secrets, startet Garage und richtet
 den Bucket `ch.so.daten` samt öffentlichem Lesepfad ein. Es wartet auf die
 Bereitschaft der Dienste. `garage-init` läuft einmalig und wird danach entfernt;
-er muss deshalb nicht in `docker compose -f compose.yaml -f compose.registry.yaml ps -a` erscheinen. `.env` und
-Garage-Konfiguration zusammen mit den persistenten Daten erhalten und nicht
-committen oder in Diagnoseausgaben kopieren.
+er muss deshalb nicht in `docker compose -f compose.yaml -f compose.registry.yaml ps -a` erscheinen.
 
+[WARNING]
+====
+`.env` und Garage-Konfiguration sind ignoriert. Konfiguration und Secrets zusammen
+mit den persistenten Daten erhalten; Secret-Werte nicht committen oder in
+Diagnoseausgaben kopieren.
+====
+
+[NOTE]
+====
 Auf einem frischen Stack fehlt `current.json` noch. Die entsprechende Meldung
 von `up.sh` ist erwartet: Sodata bleibt gestoppt. Jenkins, Editor, Dokumentation
 und das Gateway sind bereits nutzbar; die Portaladresse liefert in dieser
 Phase noch keine funktionsfähige Portaloberfläche.
+====
 
 === Öffentliche Zugänge prüfen
 
@@ -185,9 +202,13 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:8081/actuator/health
 Erwartet werden `ok`, eine 302-Weiterleitung zur Anlieferung, eine
 308-Weiterleitung zum Editorpfad mit abschliessendem Slash, auf einem frischen
 Bestand 404 für das Manifest und jeweils 403 für die Administrationspfade.
+
+[NOTE]
+====
 `/gateway-health` prüft nur APISIX, nicht die Bereitschaft seiner Backends.
 Editor und Dokumentation zusätzlich im Browser öffnen; auch deren Assets
 müssen über dieselbe Gateway-Adresse laden.
+====
 
 === Jobs erzeugen und den ersten Bestand initialisieren
 
@@ -240,9 +261,14 @@ DuckDB referenzieren. Ohne initialen Datenkatalog ist `catalog: null` zulässig.
 Die referenzierten Dateien müssen relativ zu `/ch.so.daten/` abrufbar sein.
 Nach erfolgreicher Prüfung Quiet Down in Jenkins aufheben.
 
+[WARNING]
+====
 Bei einem Fehler zuerst Bericht und Manifest prüfen. Ein vorhandenes Manifest
-nicht löschen und die Erstinitialisierung nicht wiederholen. Die fachlichen
-Hintergründe und die Prüfung des Publikationsbestands stehen in <<bootstrap>>;
+nicht löschen und die Erstinitialisierung nicht wiederholen. Ein HTTP 403
+belegt keinen leeren Bestand.
+====
+
+Die fachlichen Hintergründe und die Prüfung des Publikationsbestands stehen in <<bootstrap>>;
 die dortigen OpenShift-Befehle werden für diesen lokalen Ablauf nicht benötigt.
 
 === Eine CSV anliefern und das Portal öffnen

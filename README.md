@@ -10,8 +10,9 @@ konkrete URLs zeigen insbesondere das Zusammenspiel über APISIX.
 Der zweite optionale Einstieg **Datenportal mit OpenShift/CRC kennenlernen**
 verwendet fertige Images, externes S3 und die gemeinsamen Kustomize-Manifeste
 aus `datenportal-stack`. CRC bleibt ohne AD/AIO nutzbar; ein getrenntes
-Betreiber-Overlay ergänzt AD, Secrets und Produktionsparameter. Die aktuellen
-Jenkins-/Sodata-Releases sind nur amd64; ARM64 benötigt passende Releases.
+Betreiber-Overlay ergänzt AD, Secrets und Produktionsparameter. Die gemeinsamen
+Image-Versionen aus Kapitel 2 sind für AMD64 und ARM64 veröffentlicht; der
+OpenShift-Stack fixiert ihre Multiarch-Digests.
 
 Produktiver Aufbau der Dokumentation: Voraussetzungen → APISIX und öffentliche Zugänge → Jenkins und Seed → Publikationsbestand
 initialisieren → Editor und Sodata → Gesamtabnahme. Danach dienen die Kapitel
@@ -48,6 +49,13 @@ bleibt als historischer Nachweis des früheren Ablaufs erhalten.
 
 ## Prüfstand des OpenShift-Einstiegs
 
+[Abgleich Kapitel 2/3 vom 30.09.2026](pruefprotokolle/2026-09-30-kapitel-2-3-stack.md):
+gemeinsame Multiarch-Images, isolierte Jenkins-/Credential-Prüfung, Remote-Seed,
+Gateway-/Asset-Tests sowie CRC mit externem S3: Erstpublikation, CSV-Lieferung,
+interner Portal-Reload und Browser-SQL mit 106 Zeilen erfolgreich. Wiederanlauf
+mit erhaltenem Bestand geprüft. Details und verbleibende Grenzen stehen
+im Prüfprotokoll.
+
 [Prüfprotokoll CRC/OpenShift vom 28.09.2026](pruefprotokolle/2026-09-28-openshift-stack.md):
 Manifeste, Registryarchitekturen, Gateway und statische Anwendungen lokal geprüft.
-Cluster-, S3- und AD-Abnahme bleiben ausdrücklich offen.
+Cluster-, S3- und AD-Abnahme waren zu diesem Zeitpunkt noch offen.

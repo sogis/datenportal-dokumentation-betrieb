@@ -2,7 +2,7 @@
 == Datenportal mit OpenShift/CRC kennenlernen
 
 Dieses optionale Kapitel zeigt das Zusammenspiel auf OpenShift anhand des
-link:https://codeberg.org/edigonzales/datenportal-stack[CRC-Stacks]. Es verwendet
+link:https://github.com/sogis/datenportal-stack[CRC-Stacks]. Es verwendet
 fertige Registry-Images und dieselben Anwendungsmanifeste wie die weiter unten
 beschriebene Betreiber-Vorlage. CRC ist ein lokaler OpenShift-Cluster; für den
 Durchlauf sind weder AIO-Zugang noch AD erforderlich. Jenkins verwendet einen
@@ -11,20 +11,31 @@ lokalen Administrator mit zufällig erzeugtem Passwort.
 S3 wird hier vorausgesetzt: Ein separater Testbucket, ein Schreibzugang und
 öffentlich lesbare HTTPS-Adressen für Manifest und Downloads müssen vorhanden
 sein. Anders als im Compose-Einstieg wird Garage nicht mitinstalliert.
-Produktive Buckets oder produktive Zugangsdaten nicht für die Übung verwenden.
+
+[WARNING]
+====
+Produktive Daten und Zugangsdaten gehören nicht in diesen Ablauf. Einen
+separaten Testbucket verwenden; vorhandene Publikationen nicht überschreiben.
+====
+
+[NOTE]
+====
+Die Anleitung verwendet dieselben Anwendungsimages wie <<lokal-kennenlernen>>:
+Jenkins `0.1.0-3`, natives Sodata `0.1.11`, Dokumentation `0.1.18`,
+Datenblatt-Editor `0.1.4` und APISIX `3.14.1-debian`. Alle fünf Images sind für
+`linux/amd64` und `linux/arm64` veröffentlicht. Der Stack fixiert die zugehörigen
+Multiarch-Digests in `deploy/base/kustomization.yaml`.
+Image-Versionen, Themenrepo und Jenkins-Konfiguration müssen zusammenpassen.
+====
 
 [IMPORTANT]
 ====
-Die derzeit fixierten Registry-Releases `sogis/datenportal-jenkins:0.1.0-2` und
-`sogis/datenportal-sodata:0.1.5` bieten nur `linux/amd64`. Ein CRC auf Apple Silicon
-verwendet ARM64 und benötigt vorher passende, ausserhalb von OpenShift
-veröffentlichte Images. Das Deploymentskript prüft alle Imagearchitekturen und
-bricht bei fehlender Unterstützung vor dem Anwendungsdeployment ab. Es startet
-keinen lokalen Build als Ersatz. Ein erfolgreicher Compose-Lauf mit
-amd64-Emulation belegt keine Lauffähigkeit im ARM64-Cluster.
+Das Deploymentskript prüft alle Imagearchitekturen und bricht bei fehlender
+Unterstützung vor dem Anwendungsdeployment ab. Es startet keinen lokalen Build
+als Ersatz. Auch eigene Image-Referenzen müssen die Clusterarchitektur anbieten.
 ====
 
-=== Komponenten und Datenwege
+=== Komponenten und Wege durch das Gateway
 
 image::openshift-stack.svg["OpenShift: Browser über TLS-Router und APISIX zu den Anwendungen; Jenkins und Sodata verwenden externes S3",link="images/openshift-stack.svg"]
 
@@ -47,18 +58,28 @@ publizieren Daten. Die optionalen Skripte `build-images.sh` und `push-images.sh`
 im Stack-Repo betreffen ausschliesslich Entwicklung auf dem Arbeitsplatz.
 Sie gehören nicht zum folgenden Betriebsablauf.
 
-=== CRC und Konfiguration vorbereiten
+=== Testumgebung vorbereiten
 
 Benötigt werden CRC mit OpenShift-Preset, `oc`, Python 3, curl, Git und die
 Docker-CLI für Registry-Metadaten. Für den Registry-Start sind kein Docker-Daemon,
 Java, Maven oder lokale Anwendungs-Checkouts nötig. Registryzugriff und
 gegebenenfalls Registry-Anmeldung müssen eingerichtet sein.
 
+In einem neuen Arbeitsverzeichnis ausschliesslich den Stack klonen. Weitere
+lokale Datenportal-Repositories werden nicht benötigt:
+
 [source,bash]
 ----
-git clone https://codeberg.org/edigonzales/datenportal-stack.git
+mkdir datenportal-crc-demo
+cd datenportal-crc-demo
+git clone https://github.com/sogis/datenportal-stack.git
 cd datenportal-stack
 ----
+
+Alle weiteren Shellbefehle werden im Verzeichnis `datenportal-stack` ausgeführt.
+Jenkins klont das link:https://github.com/sogis/datenportal-themenrepo[Themenrepo]
+selbst in sein PVC; Standard ist Branch `main`, Git-Rückschreiben ist ausgeschaltet.
+Die Beispieldateien werden später einzeln heruntergeladen.
 
 Die Plattform nach `local/crc/README.md` einrichten und starten. Das dort
 beschriebene Red-Hat-Pull-Secret ausserhalb des Repositories halten. Danach im
@@ -72,12 +93,46 @@ python3 scripts/init-config.py
 ----
 
 Das Skript legt `deploy/overlays/crc/config.env` und `secrets.env` mit Dateimodus
-0600 an, überschreibt aber keine vorhandenen Dateien. Beide sind ignoriert und
-gehören nicht in Git. In `config.env` S3-Endpoint, Region, Bucket, ACL,
+0600 an, überschreibt aber keine vorhandenen Dateien. In `config.env`
+S3-Endpoint, Region, Bucket, ACL,
 Downloadbasis und Manifestadresse sowie Themenrepo/Branch prüfen. In
 `secrets.env` die S3-Zugangsdaten ergänzen; erzeugtes Jenkins-Passwort und
 Reload-Token erhalten. Format `KEY=value`, ohne Shell-Quotes oder Expansion.
 Der aktuelle Vertrag verwendet Access/Secret Key ohne Session-Token.
+`S3_ACL=bucket-owner-full-control` setzt öffentliche Lesbarkeit über eine
+Bucket-/CDN-Policy voraus. Bei einem dafür eingerichteten Testbucket mit
+aktivierten ACLs kann stattdessen `public-read` erforderlich sein. Diese Variante
+ist mit «Bucket owner enforced» nicht kompatibel; die ACL muss zum freigegebenen
+Lesekonzept passen.
+
+[WARNING]
+====
+`config.env` und `secrets.env` sind ignoriert. Konfiguration und Secrets zusammen
+mit den persistenten Daten erhalten; Secret-Werte nicht committen oder in
+Diagnoseausgaben kopieren.
+====
+
+[NOTE]
+====
+Beim Weiterverwenden einer älteren Installation bleiben vorhandene Dateien
+unverändert. Die gewünschte Themenrepo-URL in `config.env` mit
+`THEMEN_REPO_URL=https://github.com/sogis/datenportal-themenrepo.git` abgleichen;
+Branch und betriebliche Anpassungen bewusst erhalten. Jenkins-Passwort,
+S3-Schlüssel und Reload-Token nicht neu erzeugen. Images werden zentral über
+die versionierten Manifeste aktualisiert, nicht über diese Konfigurationsdatei.
+====
+
+CRC setzt `JENKINS_RUNTIME_MODE=dev` und bindet seine eigene JCasC aus der
+ConfigMap `jenkins-casc` über `CASC_JENKINS_CONFIG` ein. Der Laufzeitmodus allein
+wählt keine JCasC-Datei aus. Das lokale Konto `admin` erhält sein Passwort aus
+`stack-secrets`, Schlüssel `JENKINS_ADMIN_PASSWORD`. Für das öffentliche
+Themenrepo ist die Git-Credentials-ID ausdrücklich leer.
+
+Die S3-Schlüssel `S3_ACCESS_KEY` und `S3_SECRET_KEY` aus `stack-secrets` werden
+Jenkins als `ORG_GRADLE_PROJECT_s3AccessKey` bzw.
+`ORG_GRADLE_PROJECT_s3SecretKey` übergeben. Sie sind keine Jenkins-Git-Credentials.
+`PORTAL_RELOAD_TOKEN` aus demselben Secret wird sowohl an Jenkins als auch an
+Sodata übergeben; Secret-Werte gehören nicht in die ConfigMap.
 
 Manifest und referenzierte Dateien müssen aus Browser und Cluster erreichbar
 sein. CORS/Range und die tatsächliche öffentliche Lesefreigabe werden wie in
@@ -97,12 +152,22 @@ oc -n datenportal get pods,pvc,route
 Der Image-Preflight fragt die Registry ab, ohne Images zu bauen oder hochzuladen.
 Die festen Digests stehen zentral in `deploy/base/kustomization.yaml`.
 Das Bootstrap-Overlay startet Jenkins, Editor, Dokumentation und APISIX;
-Sodata bleibt auf null Replikaten. Die Portaladresse ist zunächst noch nicht
-funktionsfähig. Ein bereits laufendes Sodata verhindert den Bootstrap-Aufruf.
+Sodata bleibt auf null Replikaten. Ein bereits laufendes Sodata verhindert den
+Bootstrap-Aufruf.
+
+[NOTE]
+====
+Auf einem frischen Stack fehlt `current.json` noch. Sodata bleibt bis zur
+Erstpublikation gestoppt. Jenkins, Editor, Dokumentation und das Gateway sind
+bereits nutzbar; die Portaladresse liefert noch keine funktionsfähige
+Portaloberfläche.
+====
 
 Bei einem vorhandenen gültigen Manifest direkt `./scripts/deploy-crc.sh`
 verwenden. Dieser normale Aufruf prüft den Bestand und betreibt Sodata mit einer
 Instanz. Auch spätere Updates verwenden diesen Aufruf ohne `--bootstrap`.
+
+=== Öffentliche Zugänge prüfen
 
 Alle folgenden Pfade liegen unter `https://datenportal.apps-crc.testing`:
 
@@ -134,15 +199,34 @@ curl -sS -X POST -o /dev/null -w '%{http_code}\n' \
 
 Erwartet: `ok`, 302 mit erhaltenem Queryparameter, 308 auf die Slash-Adresse und
 403. Bei lokaler CA `CURL_CA_BUNDLE` auf das bereitgestellte CA-Zertifikat setzen;
-TLS-Prüfung nicht abschalten. Die Gateway-Probe prüft keine Backends.
-Editor und Dokumentation samt Assets zusätzlich im Browser öffnen.
+TLS-Prüfung nicht abschalten.
 
-=== Seed, Erstpublikation und Testlieferung
+[NOTE]
+====
+`/gateway-health` prüft nur APISIX, nicht die Bereitschaft seiner Backends.
+Editor und Dokumentation zusätzlich im Browser öffnen; auch deren Assets
+müssen über dieselbe Gateway-Adresse laden.
+====
+
+=== Jobs erzeugen und den ersten Bestand initialisieren
 
 . Jenkins unter `/jenkins/` öffnen und als `admin` mit dem Passwort aus `secrets.env` anmelden.
 . Den Seed `gretl-datenportal-seed` erfolgreich ausführen; erzeugte Organisationsjobs prüfen. Es gilt der konfigurierte Remote-Branch. Nicht committete lokale Änderungen werden nicht verwendet.
-. Manifestadresse prüfen: Nur ein nachweislich fehlender Bestand mit HTTP 404 erlaubt die Erstinitialisierung. Bei 403 oder vorhandenen/beschädigten Manifesten zuerst die Ursache klären.
+. Öffentliche Lesbarkeit und CORS anhand einer vorhandenen Testdatei prüfen. Nur ein nachweislich fehlender Bestand mit HTTP 404 an der öffentlichen Manifestadresse erlaubt die Erstinitialisierung. Bei 403 oder vorhandenen/beschädigten Manifesten zuerst die Ursache klären.
 . In Jenkins Quiet Down aktivieren und laufende Jobs abwarten. Gültige Datenblätter und `shared/data/offices.xtf` im erfolgreichen Seeder-Checkout voraussetzen.
+
+[NOTE]
+====
+AWS S3 kann für ein fehlendes Objekt öffentlich 403 statt 404 liefern, wenn
+anonyme Benutzer kein `s3:ListBucket` besitzen. Der verwendete GRETL-Vertrag
+verlangt jedoch auch selbst HTTP 404 an der öffentlichen Manifestadresse.
+Ein authentifiziertes HEAD mit 404 bestätigt das fehlende Objekt, ersetzt
+aber diese Voraussetzung nicht. Den Lesedienst vor der Erstinitialisierung
+mit dem Speicherbetrieb abstimmen. Bei direkter S3-Lesebasis kann die Freigabe
+von `s3:ListBucket` auf dem Testbucket 404 ermöglichen; sie macht zugleich
+Objektnamen öffentlich auflistbar und ist eine bewusste Speicherfreigabe.
+Siehe link:https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html[AWS: HeadObject].
+====
 
 Die vollständige Initialisierung erfolgt in einer eigenen beschreibbaren Kopie
 im Jenkins-PVC. Am Arbeitsplatz ausführen:
@@ -164,30 +248,45 @@ tar -C /var/jenkins_home/gretl-datenportal/topic-repo \
 cd "$publication_init_dir"
 ./shared/bin/gradlew-java17.sh --no-daemon \
   -I "$PWD/shared/gradle/init.gradle" initializePublication \
-  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false
+  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false </dev/null
 printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
 SH
 ----
 
 `report.json`, Manifest und referenzierte Dateien prüfen, dann Quiet Down
-aufheben. Bei Fehlern keine erneute Initialisierung über einen inzwischen
-vorhandenen Bestand ausführen. Details und alternative Übernahme in <<bootstrap>>.
+aufheben. Das Manifest muss eine `releaseId`, eine Datenblattsammlung und eine
+gültige DuckDB referenzieren. Ohne initialen Datenkatalog ist `catalog: null`
+zulässig. Alle referenzierten Dateien müssen öffentlich abrufbar sein.
 
-Für dieselbe Testlieferung wie beim Compose-Einstieg das Pilotdaten-Repository
-neben dem Stack klonen:
+[WARNING]
+====
+Bei einem Fehler zuerst Bericht und Manifest prüfen. Ein vorhandenes Manifest
+nicht löschen und die Erstinitialisierung nicht wiederholen. Ein HTTP 403
+belegt keinen leeren Bestand.
+====
+
+Details und alternative Übernahme in <<bootstrap>>.
+
+=== Eine CSV anliefern und das Portal öffnen
+
+Die Beispieldateien einzeln herunterladen; dafür sind keine weiteren Checkouts
+nötig. curl bricht bei HTTP-Fehlern ab:
 
 [source,bash]
 ----
-git clone https://codeberg.org/edigonzales/datenportal-pilot-daten.git ../datenportal-pilot-daten
+mkdir -p demo-inputs
+curl -fL --output demo-inputs/so_bevo_altersstruktur_2025.csv \
+  https://codeberg.org/edigonzales/datenportal-pilot-daten/raw/branch/main/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv
+curl -fL --output demo-inputs/meta-ch.so.bevoelkerung.altersstruktur.xtf \
+  https://raw.githubusercontent.com/sogis/datenportal-themenrepo/main/statistikdienst/ch.so.bevoelkerung.altersstruktur/meta-ch.so.bevoelkerung.altersstruktur.xtf
 ----
 
-Unter `/anlieferung` Organisation `statistikdienst` und Thema
-`ch.so.bevoelkerung.altersstruktur` wählen. CSV
-`../datenportal-pilot-daten/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv`
-anliefern, Ausgabe `2025`, Metadaten leer lassen. Das Beispiel setzt dieses
-Thema und sein gültiges Datenblatt im konfigurierten Remote-Branch voraus.
-«Portal nach Veröffentlichung neu laden» zunächst ausgeschaltet lassen.
-Erfolgreichen Lieferjob, Bericht und neue `releaseId` prüfen.
+. `https://datenportal.apps-crc.testing/anlieferung` öffnen.
+. Organisation `statistikdienst` und Thema `ch.so.bevoelkerung.altersstruktur` wählen.
+. «Lieferung verarbeiten» wählen und als Datendatei `demo-inputs/so_bevo_altersstruktur_2025.csv` auswählen.
+. Als Ausgabe `2025` eintragen. Metadatenupload leer lassen; die initialisierte Datenblattsammlung enthält das zugehörige Datenblatt.
+. «Portal nach Veröffentlichung neu laden» ausgeschaltet lassen. Sodata läuft in diesem ersten Durchgang noch nicht.
+. Job starten und einen erfolgreichen Build abwarten. Im zugehörigen `report.json` die angenommene Publikation und den RDF-Export prüfen; `current.json` muss eine neue `releaseId` enthalten.
 
 [source,bash]
 ----
@@ -195,13 +294,23 @@ Erfolgreichen Lieferjob, Bericht und neue `releaseId` prüfen.
 ./scripts/smoke-test.sh
 ----
 
-Im Portal nach «Altersstruktur» suchen, Ausgabe 2025 öffnen, Download und
-«Erkunden» prüfen. Bei einer weiteren Testlieferung den Reload einschalten:
+Im Portal nach «Altersstruktur» suchen, den Datensatz für 2025 öffnen und einen
+Download abrufen. Anschliessend «Daten erkunden» öffnen, das Laden der Tabellen
+abwarten und eine einfache Abfrage auf die gelieferte Parquet-Datei ausführen.
+Das Ergebnis muss Zeilen aus der Testlieferung anzeigen. Bereits offene
+Explore-Seiten vor der Prüfung neu laden.
+
+Zum Kennenlernen des Editors unter `/datenblatt-editor/` die Datei
+`demo-inputs/meta-ch.so.bevoelkerung.altersstruktur.xtf` lokal importieren,
+bearbeiten und wieder als XTF exportieren. Dieser Export publiziert noch nichts;
+erst eine anschliessende Lieferung über Jenkins übernimmt Änderungen.
+
+Bei einer weiteren Testlieferung den Reload einschalten:
 Jenkins und Sodata erhalten dasselbe Token aus `stack-secrets`; die Reload-URL
 ist intern `http://sodata:8080/admin/catalog/reload`. Danach muss das Portal die
 neue Generation zeigen, während öffentliche Reload-Aufrufe weiterhin 403 liefern.
 
-=== Anhalten, Aktualisieren und Diagnose
+=== Anhalten, wieder starten und Fehler eingrenzen
 
 [source,bash]
 ----
@@ -226,6 +335,8 @@ auslösen, setzt Sodata aber nicht mehr auf null Replikate.
 |Pod startet nicht |`oc describe pod`, Events, Image-Pull-Berechtigung, SCC und Volume-Rechte prüfen.
 |Jenkins wartet auf Speicher |PVC/StorageClass und freien Speicher prüfen; zu wenig Speicher kann auch den Jenkins-Executor sperren.
 |Gateway 502/504 |Backend-Service, DNS, Probes und Logs prüfen. Gateway-Health allein genügt nicht.
+|Jenkins-/Portalroute liefert 404 trotz Gateway-Health |APISIX-Logs auf ungültige Upstream-Ports prüfen. `enableServiceLinks: false` im APISIX-Pod verhindert die Kollision mit automatisch gesetzten Kubernetes-Variablen wie `JENKINS_PORT=tcp://…`.
+|Sodata nach CRC-Neustart in CrashLoopBackOff |Bei `HttpConnectTimeoutException` zuerst Clusterbereitschaft, DNS und HTTPS-Zugriff auf Manifest/Artefakte aus Jenkins prüfen. Nach wiederhergestellter Verbindung bei Bedarf `oc -n datenportal rollout restart deployment/sodata`, danach Rollout und Portal prüfen. Keine erneute Erstinitialisierung.
 |Fehlendes Manifest |Vor Erstpublikation erwartet; nach erfolgreicher Initialisierung Manifest und Artefakte prüfen.
 |Veralteter Portalstand |Publikationsbericht und internen Reload prüfen. Kein externes `/admin` freigeben.
 |===
@@ -234,7 +345,7 @@ auslösen, setzt Sodata aber nicht mehr auf null Replikate.
 
 Die ausführbare Quelle bleibt das Stack-Repository. Es gibt keine zweite
 Manifestkopie in diesem Buch. Die
-link:https://codeberg.org/edigonzales/datenportal-stack/src/branch/main/deploy/overlays/operator/README.md[Betreiber-Anleitung]
+link:https://github.com/sogis/datenportal-stack/blob/main/deploy/overlays/operator/README.md[Betreiber-Anleitung]
 und das Overlay `deploy/overlays/operator` beschreiben die konkreten Dateien,
 Secret-Schlüssel und Ausrollbefehle.
 
@@ -254,8 +365,17 @@ Secret-Schlüssel und Ausrollbefehle.
 Vor der Übernahme Namespace, Konfigurationsdatei, Host und Storage-Patch
 anpassen. AD-Truststore, AD-/Git-/S3-/Reload-Secrets und JCasC über die
 betriebliche Secret-Verwaltung bereitstellen. Die mitgelieferte JCasC wurde
-gegen das veröffentlichte Jenkins-Image `0.1.0-2` abgeglichen; ältere lokale
-Jenkins-Quellen können davon abweichen. Bei Imagewechsel Vertrag erneut prüfen.
+gegen Jenkins `0.1.0-3` geprüft; bei Imagewechsel Entrypoint, Plugin und JCasC
+erneut gegen das veröffentlichte Image prüfen.
+
+Für ein privates Themenrepo stellt das Secret `themenrepo-git` die Schlüssel
+`username` und `token` bereit. Der Deployment-Patch übergibt sie als
+`THEMEN_REPO_GIT_USERNAME` und `THEMEN_REPO_GIT_TOKEN`; die JCasC erstellt daraus
+ein globales Credential vom Typ «Username with password». Dessen ID und
+`topicRepositoryCredentialsId` verwenden beide `THEMEN_REPO_CREDENTIALS_ID`.
+Das Token steht im Passwortfeld. Die Credentials-ID allein legt kein Credential an.
+Die vollständige Zuordnung und die Anpassung für öffentliche Repositories
+stehen in der Betreiber-Anleitung; weitere Erläuterungen in <<jenkins>>.
 
 Danach aus dem Stack-Verzeichnis, mit dem angepassten Namespace:
 
@@ -273,6 +393,9 @@ Sodata-Instanz voraus. Netzwerkregeln, Zertifikate, maximale Liefergrössen,
 Monitoring, Sicherung und Wiederherstellung bleiben mit der Zielplattform
 abzunehmen. Die weitere produktive Durchführung beginnt in <<voraussetzungen>>.
 
-Der aktuelle Prüfstand steht im Stack-Repository unter `docs/validation.md`.
+Der aktuelle Prüfstand steht im
+link:https://github.com/sogis/datenportal-stack/blob/main/docs/validation.md[Stack-Repository]
+und im
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-kapitel-2-3-stack.md[Prüfnachweis zum Abgleich von Kapitel 2 und 3].
 Lokale Routingtests und gerenderte YAML-Dateien ersetzen keine vollständige
 Abnahme mit AD, S3 und produktivem OpenShift.
