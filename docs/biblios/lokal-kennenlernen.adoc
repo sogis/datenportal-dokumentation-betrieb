@@ -22,7 +22,7 @@ nicht in diesen Ablauf.
 Die Anleitung verwendet Jenkins `0.1.0-3`, das native Sodata-Image `0.1.10`
 und Dokumentation `0.1.18`. Image-Versionen, Themenrepo und Jenkins-Konfiguration
 müssen zusammenpassen. Der Prüfstand und verbleibende Einschränkungen stehen im
-link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/pruefprotokolle/2026-09-30-registry-stack.md[Prüfprotokoll vom 30.09.2026].
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Prüfprotokoll vom 30.09.2026].
 ====
 
 === Komponenten und Wege durch das Gateway
