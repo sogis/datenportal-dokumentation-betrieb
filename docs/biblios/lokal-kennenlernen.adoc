@@ -78,17 +78,23 @@ ausserdem kein frischer Publikationsbestand.
 
 === Mit vorhandenen Images starten
 
-Zuerst die lokale Konfiguration erzeugen:
+Bei einem frischen Checkout direkt starten. `up.sh` erzeugt die lokale
+Konfiguration automatisch mit den veröffentlichten Image-Tags; eine manuelle
+Anpassung der Image-Zeilen ist nicht nötig:
 
 [source,bash]
 ----
-./scripts/init.sh
+./scripts/up.sh --registry-only
+docker compose -f compose.yaml -f compose.registry.yaml ps -a
 ----
 
-Bei einer neuen `.env` sind die folgenden Versionen bereits voreingestellt.
-Bei einer vorhandenen `.env` ausschliesslich die drei Image-Zeilen prüfen und
-gegebenenfalls aktualisieren; alle übrigen Werte einschliesslich der erzeugten
-Schlüssel beibehalten. Keine unversionierten Tags wie `latest` verwenden:
+[NOTE]
+====
+Nur beim Weiterverwenden einer älteren Installation: Eine vorhandene `.env`
+wird nicht mit neuen Vorgaben überschrieben. Vor dem Start ausschliesslich die
+drei Image-Zeilen mit den folgenden Vorgaben abgleichen und gegebenenfalls
+aktualisieren; alle übrigen Werte einschliesslich der erzeugten Schlüssel
+beibehalten. Keine unversionierten Tags wie `latest` verwenden:
 
 [source,ini]
 ----
@@ -96,20 +102,17 @@ DATENPORTAL_JENKINS_IMAGE=sogis/datenportal-jenkins:0.1.0-3
 DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.10
 DATENPORTAL_DOCS_IMAGE=sogis/datenportal-dokumentation:0.1.18
 ----
+====
+
+Diese Tags sowie die in Compose fixierten Images für Editor, Garage, APISIX,
+rclone und AWS CLI wurden am 30.09.2026 direkt in der Registry geprüft; alle
+sind für `linux/amd64` und `linux/arm64` veröffentlicht.
 
 `sogis/datenportal-sodata` enthält das native Binary. Das separate Image
 `sogis/datenportal-sodata-jvm` wird für diesen Ablauf nicht verwendet.
 `THEMEN_REPO_URL` kann in `.env` eine andere Git-Quelle wählen;
 Standard ist `https://github.com/sogis/datenportal-themenrepo.git`.
 `THEMEN_REPO_BRANCH` wählt den Branch, standardmässig `main`.
-
-Danach starten:
-
-[source,bash]
-----
-./scripts/up.sh --registry-only
-docker compose -f compose.yaml -f compose.registry.yaml ps -a
-----
 
 Der Aufruf lädt zusätzlich `compose.registry.yaml`. Dieses Override ersetzt
 die lokalen Schwesterrepo-Mounts vollständig und aktiviert `managed-git` für
