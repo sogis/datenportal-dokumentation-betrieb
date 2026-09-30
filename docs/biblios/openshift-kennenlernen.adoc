@@ -12,7 +12,7 @@ S3 wird hier vorausgesetzt: Ein separater Testbucket, ein Schreibzugang und
 öffentlich lesbare HTTPS-Adressen für Manifest und Downloads müssen vorhanden
 sein. Anders als im Compose-Einstieg wird Garage nicht mitinstalliert.
 
-[WARNING]
+[IMPORTANT]
 ====
 Produktive Daten und Zugangsdaten gehören nicht in diesen Ablauf. Einen
 separaten Testbucket verwenden; vorhandene Publikationen nicht überschreiben.
@@ -105,7 +105,7 @@ aktivierten ACLs kann stattdessen `public-read` erforderlich sein. Diese Variant
 ist mit «Bucket owner enforced» nicht kompatibel; die ACL muss zum freigegebenen
 Lesekonzept passen.
 
-[WARNING]
+[IMPORTANT]
 ====
 `config.env` und `secrets.env` sind ignoriert. Konfiguration und Secrets zusammen
 mit den persistenten Daten erhalten; Secret-Werte nicht committen oder in
@@ -258,7 +258,7 @@ aufheben. Das Manifest muss eine `releaseId`, eine Datenblattsammlung und eine
 gültige DuckDB referenzieren. Ohne initialen Datenkatalog ist `catalog: null`
 zulässig. Alle referenzierten Dateien müssen öffentlich abrufbar sein.
 
-[WARNING]
+[IMPORTANT]
 ====
 Bei einem Fehler zuerst Bericht und Manifest prüfen. Ein vorhandenes Manifest
 nicht löschen und die Erstinitialisierung nicht wiederholen. Ein HTTP 403

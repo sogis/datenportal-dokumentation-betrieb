@@ -5,8 +5,6 @@
 :figure-caption: Abbildung
 :note-caption: Hinweis
 :important-caption: Wichtig
-:warning-caption: Achtung
-:tip-caption: Tipp
 :xrefstyle: full
 :chapter-refsig: Kapitel
 :section-refsig: Kapitel

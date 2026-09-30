@@ -33,6 +33,10 @@ Optional mit Asciidoctor als HTML rendern:
 asciidoctor -o /tmp/datenportal-betrieb.html docs/biblios/master.adoc
 ```
 
+Für Hervorhebungen verwenden wir zwei Kategorien: `[NOTE]` («Hinweis») für
+ergänzende Erklärungen und `[IMPORTANT]` («Wichtig») für Voraussetzungen und
+Schutzregeln. Gleiche Sachverhalte erhalten in allen Kapiteln dieselbe Kategorie.
+
 ## Prüfstand des lokalen Einstiegs
 
 [Registry-Prüfprotokoll vom 30.09.2026](pruefprotokolle/2026-09-30-registry-stack.md):

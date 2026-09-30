@@ -13,7 +13,7 @@ Die Registry-Variante benötigt auf dem Arbeitsplatz nur den Dev-Stack-Checkout;
 Jenkins bezieht das Themenrepo selbst aus Git. Garage samt Testbucket ist
 hier enthalten. Die Umgebung verwendet HTTP und lokale Jenkins-Testkonten statt AD.
 
-[WARNING]
+[IMPORTANT]
 ====
 Produktive Daten und Zugangsdaten gehören nicht in diesen Ablauf. Die Umgebung
 gehört auf einen geschützten Testrechner, nicht an einen öffentlich erreichbaren
@@ -153,7 +153,7 @@ den Bucket `ch.so.daten` samt öffentlichem Lesepfad ein. Es wartet auf die
 Bereitschaft der Dienste. `garage-init` läuft einmalig und wird danach entfernt;
 er muss deshalb nicht in `docker compose -f compose.yaml -f compose.registry.yaml ps -a` erscheinen.
 
-[WARNING]
+[IMPORTANT]
 ====
 `.env` und Garage-Konfiguration sind ignoriert. Konfiguration und Secrets zusammen
 mit den persistenten Daten erhalten; Secret-Werte nicht committen oder in
@@ -261,7 +261,7 @@ DuckDB referenzieren. Ohne initialen Datenkatalog ist `catalog: null` zulässig.
 Die referenzierten Dateien müssen relativ zu `/ch.so.daten/` abrufbar sein.
 Nach erfolgreicher Prüfung Quiet Down in Jenkins aufheben.
 
-[WARNING]
+[IMPORTANT]
 ====
 Bei einem Fehler zuerst Bericht und Manifest prüfen. Ein vorhandenes Manifest
 nicht löschen und die Erstinitialisierung nicht wiederholen. Ein HTTP 403
