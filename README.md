@@ -34,11 +34,15 @@ asciidoctor -o /tmp/datenportal-betrieb.html docs/biblios/master.adoc
 
 ## Prüfstand des lokalen Einstiegs
 
-[Prüfprotokoll vom 28.09.2026](pruefprotokolle/2026-09-28-lokaler-stack.md):
-Registry-Start mit expliziten veröffentlichten Image-Tags, Gateway-Zugänge und
-Seed geprüft. Die vollständige Testpublikation bleibt wegen zu wenig freiem
-Docker-Speicher in der Testumgebung noch abzunehmen. Das Protokoll nennt die
-verwendeten Quellstände, Image-Digests und offenen Prüfungen.
+[Registry-Prüfprotokoll vom 30.09.2026](pruefprotokolle/2026-09-30-registry-stack.md):
+Mit einem isolierten Dev-Stack ohne Schwester-Checkouts geprüft: versionierte
+Images, GitHub-Seed, Erstpublikation, CSV-Anlieferung über Jenkins, natives
+Sodata mit Suche/Detailseite/Download sowie Neustart mit erhaltenem Bestand.
+Bekannte Einschränkung: «Daten erkunden» liefert im nativen Sodata-Image
+`0.1.10` HTTP 500 wegen fehlender Reflection-Metadaten.
+
+Das [Prüfprotokoll vom 28.09.2026](pruefprotokolle/2026-09-28-lokaler-stack.md)
+bleibt als historischer Nachweis des früheren Ablaufs erhalten.
 
 ## Prüfstand des OpenShift-Einstiegs
 

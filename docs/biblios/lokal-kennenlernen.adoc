@@ -8,7 +8,9 @@ Adresse verbindet. Für den produktiven Aufbau direkt mit <<voraussetzungen>>
 fortfahren.
 
 Der link:https://codeberg.org/edigonzales/datenportal-dev-stack[Dev-Stack] verwendet
-Docker Compose und bereits gebaute Containerimages. Garage samt Testbucket ist
+Docker Compose und bereits gebaute, versionsgetaggte Containerimages.
+Die Registry-Variante benötigt auf dem Arbeitsplatz nur den Dev-Stack-Checkout;
+Jenkins bezieht das Themenrepo selbst aus Git. Garage samt Testbucket ist
 hier enthalten. Die Umgebung verwendet HTTP und lokale Jenkins-Testkonten statt
 AD; sie gehört auf einen geschützten Testrechner, nicht an einen öffentlich
 erreichbaren Anschluss. Die Compose-Ports sind standardmässig auch über andere
@@ -17,11 +19,10 @@ nicht in diesen Ablauf.
 
 [NOTE]
 ====
-Die unten angegebenen Image-Tags wurden am 28.09.2026 auf Verfügbarkeit geprüft;
-Stackstart, Gateway-Zugänge und Seed wurden damit geprüft. Die Erstpublikation
-und die Anzeige der Pilotdaten im Portal sind noch nicht vollständig abgenommen:
-Die lokale Testumgebung hatte zu wenig freien Docker-Speicher für weitere Jobs.
-Image-Versionen, Themenrepo und Jenkins-Konfiguration müssen zusammenpassen.
+Die Anleitung verwendet Jenkins `0.1.0-3`, das native Sodata-Image `0.1.10`
+und Dokumentation `0.1.18`. Image-Versionen, Themenrepo und Jenkins-Konfiguration
+müssen zusammenpassen. Der Prüfstand und verbleibende Einschränkungen stehen im
+link:https://codeberg.org/edigonzales/datenportal-dokumentation-betrieb/src/branch/main/pruefprotokolle/2026-09-30-registry-stack.md[Prüfprotokoll vom 30.09.2026].
 ====
 
 === Komponenten und Wege durch das Gateway
@@ -45,32 +46,31 @@ OpenShift-Serviceadressen; die produktive Einordnung steht in <<apisix>>.
 
 === Testumgebung vorbereiten
 
-Benötigt werden Docker mit laufendem Daemon und Compose v2, Git, Bash, OpenSSL,
-curl, Python 3 und die üblichen Shellwerkzeuge. Netzwerkzugriff auf die
+Benötigt werden Docker mit laufendem Daemon und Compose ab Version 2.24.4,
+Git, Bash, OpenSSL, curl, Python 3 und die üblichen Shellwerkzeuge. Netzwerkzugriff auf die
 Repositories und Containerregistries ist erforderlich. Java, Maven und Node
 müssen auf dem Arbeitsplatz nicht installiert werden. Die folgenden Befehle
 verwenden eine Bash-kompatible Shell und die freien Hostports 8081 und 3900.
 
-In einem neuen gemeinsamen Arbeitsverzeichnis diese vier Repositories klonen:
+In einem neuen Arbeitsverzeichnis ausschliesslich den Dev-Stack klonen:
 
 [source,bash]
 ----
 mkdir datenportal-demo
 cd datenportal-demo
 git clone https://codeberg.org/edigonzales/datenportal-dev-stack.git
-git clone https://codeberg.org/edigonzales/datenportal-jenkins-dev.git
-git clone https://codeberg.org/edigonzales/datenportal-themenrepo.git
-git clone https://codeberg.org/edigonzales/datenportal-pilot-daten.git
 cd datenportal-dev-stack
 docker compose version
 docker info
 ----
 
-`datenportal-jenkins-dev` liefert die gemountete lokale Jenkins-Konfiguration
-(JCasC); daraus wird hier kein Image gebaut. Das Themenrepo liefert die
-Jobdefinitionen, Datenblätter und den Verarbeitungsvertrag. Die Pilotdaten
-enthalten die CSV für die spätere Testlieferung. Alle weiteren Shellbefehle
-werden im Verzeichnis `datenportal-dev-stack` ausgeführt.
+Die lokale Jenkins-Testkonfiguration (JCasC) liegt im Dev-Stack. Das
+link:https://github.com/sogis/datenportal-themenrepo[Themenrepo] liefert
+Jobdefinitionen, Datenblätter und den Verarbeitungsvertrag; Jenkins klont es
+beim Seed in sein persistentes Volume. Standard ist Branch `main`, Git-
+Rückschreiben ist ausgeschaltet. Die Beispiel-CSV und das Datenblatt werden
+später einzeln heruntergeladen. Alle weiteren Shellbefehle werden im
+Verzeichnis `datenportal-dev-stack` ausgeführt.
 
 Keine zweite Instanz neben einem bereits laufenden Dev-Stack mit denselben
 Ports und demselben Compose-Projektnamen starten. Ein vorhandener Stack ist
@@ -85,25 +85,35 @@ Zuerst die lokale Konfiguration erzeugen:
 ./scripts/init.sh
 ----
 
-Die voreingestellten Tags `0.1.0` für Jenkins und Sodata waren beim Prüfstand
-nicht verfügbar. In der erzeugten `.env` die beiden vorhandenen Image-Zeilen
-durch diese veröffentlichten Tags ersetzen; alle anderen Werte einschliesslich der erzeugten
-Schlüssel beibehalten:
+Bei einer neuen `.env` sind die folgenden Versionen bereits voreingestellt.
+Bei einer vorhandenen `.env` ausschliesslich die drei Image-Zeilen prüfen und
+gegebenenfalls aktualisieren; alle übrigen Werte einschliesslich der erzeugten
+Schlüssel beibehalten. Keine unversionierten Tags wie `latest` verwenden:
 
 [source,ini]
 ----
-DATENPORTAL_JENKINS_IMAGE=sogis/datenportal-jenkins:0.1.0-2
-DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.5
+DATENPORTAL_JENKINS_IMAGE=sogis/datenportal-jenkins:0.1.0-3
+DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.10
+DATENPORTAL_DOCS_IMAGE=sogis/datenportal-dokumentation:0.1.18
 ----
+
+`sogis/datenportal-sodata` enthält das native Binary. Das separate Image
+`sogis/datenportal-sodata-jvm` wird für diesen Ablauf nicht verwendet.
+`THEMEN_REPO_URL` kann in `.env` eine andere Git-Quelle wählen;
+Standard ist `https://github.com/sogis/datenportal-themenrepo.git`.
+`THEMEN_REPO_BRANCH` wählt den Branch, standardmässig `main`.
 
 Danach starten:
 
 [source,bash]
 ----
 ./scripts/up.sh --registry-only
-docker compose ps -a
+docker compose -f compose.yaml -f compose.registry.yaml ps -a
 ----
 
+Der Aufruf lädt zusätzlich `compose.registry.yaml`. Dieses Override ersetzt
+die lokalen Schwesterrepo-Mounts vollständig und aktiviert `managed-git` für
+Jenkins. Es ist mit keiner `--local-*`-Buildoption kombinierbar.
 Der Aufruf verwendet vorhandene Images beziehungsweise lädt fehlende Images
 aus der Registry. Er baut keine Komponenten lokal. Bereits vorhandene Images
 werden dabei nicht automatisch auf neuere Registry-Inhalte geprüft.
@@ -112,7 +122,7 @@ Das Skript erzeugt einmalig die ignorierte `.env` und
 `services/garage/garage.toml` mit lokalen Secrets, startet Garage und richtet
 den Bucket `ch.so.daten` samt öffentlichem Lesepfad ein. Es wartet auf die
 Bereitschaft der Dienste. `garage-init` läuft einmalig und wird danach entfernt;
-er muss deshalb nicht in `docker compose ps -a` erscheinen. `.env` und
+er muss deshalb nicht in `docker compose -f compose.yaml -f compose.registry.yaml ps -a` erscheinen. `.env` und
 Garage-Konfiguration zusammen mit den persistenten Daten erhalten und nicht
 committen oder in Diagnoseausgaben kopieren.
 
@@ -162,13 +172,13 @@ müssen über dieselbe Gateway-Adresse laden.
 === Jobs erzeugen und den ersten Bestand initialisieren
 
 . `http://localhost:8081/jenkins/` öffnen und mit dem lokalen Testkonto `admin` / `admin` anmelden.
-. Den automatisch angelegten Job `gretl-datenportal-seed` starten. Erfolgreichen Abschluss und erzeugte Organisationsjobs prüfen. Der Seed publiziert keine Daten; er übernimmt hier den lokalen Themenrepo-Arbeitsstand.
+. Den automatisch angelegten Job `gretl-datenportal-seed` starten. Erfolgreichen Abschluss und erzeugte Organisationsjobs prüfen. Der Seed publiziert keine Daten; er übernimmt den konfigurierten GitHub-Branch in den Jenkins-Checkout.
 . In «Jenkins verwalten» das Herunterfahren vorbereiten (Quiet Down), sodass keine neuen Builds starten. Laufende Builds vollständig abwarten; Jenkins selbst weiterlaufen lassen.
 . Die gültigen Datenblätter und `shared/data/offices.xtf` im Themenrepo voraussetzen. Die Initialisierung verarbeitet alle Themen, nicht nur das spätere Beispiel.
 
 Der folgende vollständige Block prüft zuerst auf HTTP 404 und erstellt dann
-eine neue beschreibbare Kopie im Jenkins-Volume. Quellmount und Seeder-Snapshot
-werden nicht als Buildverzeichnis verwendet:
+eine neue beschreibbare Kopie im Jenkins-Volume. Der erfolgreiche Seeder-Checkout
+bleibt dabei unverändert:
 
 [source,bash]
 ----
@@ -180,16 +190,16 @@ if [ "$manifest_status" != 404 ]; then
   echo "Keine Erstinitialisierung: Manifest liefert HTTP $manifest_status." >&2
   exit 1
 fi
-docker compose exec -T jenkins bash -s <<'SH'
+docker compose -f compose.yaml -f compose.registry.yaml exec -T jenkins bash -s <<'SH'
 set -euo pipefail
 publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
-tar -C /workspace/themenrepo \
+tar -C /var/jenkins_home/gretl-datenportal/topic-repo \
   --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
   -cf - . | tar -C "$publication_init_dir" -xf -
 cd "$publication_init_dir"
 ./shared/bin/gradlew-java17.sh --no-daemon \
   -I "$PWD/shared/gradle/init.gradle" initializePublication \
-  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false
+  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false </dev/null
 printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
 SH
 LOCAL
@@ -217,37 +227,58 @@ die dortigen OpenShift-Befehle werden für diesen lokalen Ablauf nicht benötigt
 
 === Eine CSV anliefern und das Portal öffnen
 
+Die Beispieldateien einzeln herunterladen; dafür sind keine weiteren Checkouts
+nötig. curl bricht bei HTTP-Fehlern ab:
+
+[source,bash]
+----
+mkdir -p demo-inputs
+curl -fL --output demo-inputs/so_bevo_altersstruktur_2025.csv \
+  https://codeberg.org/edigonzales/datenportal-pilot-daten/raw/branch/main/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv
+curl -fL --output demo-inputs/meta-ch.so.bevoelkerung.altersstruktur.xtf \
+  https://raw.githubusercontent.com/sogis/datenportal-themenrepo/main/statistikdienst/ch.so.bevoelkerung.altersstruktur/meta-ch.so.bevoelkerung.altersstruktur.xtf
+----
+
 . `http://localhost:8081/anlieferung` öffnen.
 . Organisation `statistikdienst` und Thema `ch.so.bevoelkerung.altersstruktur` wählen.
-. «Lieferung verarbeiten» wählen und als Datendatei `../datenportal-pilot-daten/ch.so.bevoelkerung.altersstruktur/so_bevo_altersstruktur_2025.csv` auswählen.
+. «Lieferung verarbeiten» wählen und als Datendatei `demo-inputs/so_bevo_altersstruktur_2025.csv` auswählen.
 . Als Ausgabe `2025` eintragen. Metadatenupload leer lassen; die initialisierte Datenblattsammlung enthält das zugehörige Datenblatt.
 . «Portal nach Veröffentlichung neu laden» ausgeschaltet lassen. Sodata läuft in diesem ersten Durchgang noch nicht.
 . Job starten und einen erfolgreichen Build abwarten. Im zugehörigen `report.json` die angenommene Publikation und den RDF-Export prüfen; `current.json` muss eine neue `releaseId` enthalten.
 
-Nun Sodata starten. Für den hier beschriebenen Ablauf ohne lokale
-Overrides diesen vollständigen Befehl verwenden:
+Nun das native Sodata-Image starten. Wie bei allen direkten Compose-Aufrufen
+die Registry-Override-Datei mit angeben:
 
 [source,bash]
 ----
-docker compose -f compose.yaml up -d --wait --wait-timeout 120 sodata
-docker compose exec -T jenkins curl -fsS http://sodata:8080/actuator/health
+docker compose -f compose.yaml -f compose.registry.yaml up -d --wait --wait-timeout 120 sodata
+docker compose -f compose.yaml -f compose.registry.yaml exec -T jenkins curl -fsS http://sodata:8080/actuator/health
 ----
 
 Unter `http://localhost:8081/` nach «Altersstruktur» suchen, den Datensatz für
-2025 öffnen, einen Download abrufen und «Erkunden» ausprobieren. Die Daten
+2025 öffnen und einen Download abrufen. Die Daten
 kommen aus der gerade erzeugten Publikation; Portal und Dateien werden über
 APISIX ausgeliefert. Die interne Health-Abfrage ist erlaubt, obwohl dieselbe
 Administrationsadresse öffentlich 403 liefert.
 
+[NOTE]
+====
+Im geprüften nativen Image `0.1.10` liefert «Daten erkunden» HTTP 500.
+Es fehlen Reflection-Metadaten für `ExploreContextDto` im Native-Build.
+Suche, Detailseiten und Downloads funktionieren. «Erkunden» erst mit einem
+korrigierten veröffentlichten nativen Image erneut abnehmen; Details stehen
+im oben verlinkten Prüfprotokoll.
+====
+
 Das Portal lädt den Bestand beim Start. Für diesen ersten Durchgang ist deshalb
 kein Reload-Token nötig. Nach einer weiteren Lieferung kann der lokale
-Portalstand mit `docker compose restart sodata` aktualisiert werden. Die
+Portalstand mit `docker compose -f compose.yaml -f compose.registry.yaml restart sodata` aktualisiert werden. Die
 Konfiguration eines automatischen Reloads gehört zum weiterführenden Betrieb,
 siehe <<sodata>>.
 
 Zum Kennenlernen des Editors unter `http://localhost:8081/datenblatt-editor/`
 die Datei
-`../datenportal-themenrepo/statistikdienst/ch.so.bevoelkerung.altersstruktur/meta-ch.so.bevoelkerung.altersstruktur.xtf`
+`demo-inputs/meta-ch.so.bevoelkerung.altersstruktur.xtf`
 lokal importieren, bearbeiten und wieder als XTF exportieren. Dieser Export
 publiziert noch nichts; erst eine anschliessende Lieferung über Jenkins
 übernimmt Änderungen. Der Ablauf setzt keinen Browser-Import über das
@@ -257,13 +288,13 @@ Manifest voraus.
 
 [source,bash]
 ----
-docker compose ps -a
-docker compose logs --tail=100 downloads jenkins
-docker compose logs --tail=100 sodata s3-browser garage
-./scripts/down.sh
+docker compose -f compose.yaml -f compose.registry.yaml ps -a
+docker compose -f compose.yaml -f compose.registry.yaml logs --tail=100 downloads jenkins
+docker compose -f compose.yaml -f compose.registry.yaml logs --tail=100 sodata s3-browser garage
+docker compose -f compose.yaml -f compose.registry.yaml down
 ----
 
-`down.sh` entfernt die Container und das Compose-Netzwerk. Jenkins-Home und
+`down` entfernt die Container und das Compose-Netzwerk. Jenkins-Home und
 Garage-Daten bleiben in Volumes erhalten. Ein späterer Start mit
 `./scripts/up.sh --registry-only` verwendet den bestehenden Bestand; bei gültigem
 Manifest startet dann auch Sodata. Keine erneute Erstinitialisierung ausführen.
@@ -276,7 +307,7 @@ Volumes und die dazugehörigen lokalen Secrets nicht als Fehlerbehebung löschen
 |Port bereits belegt |Andere lokale Dienste und bestehende Compose-Instanzen prüfen. Für diesen Durchlauf die Standardports freigeben; alternative Ports sind in der Stack-Dokumentation beschrieben.
 |Job bleibt in der Warteschlange
 |In Jenkins den Ausführungsknoten und dessen Offline-Grund prüfen. Der Docker-Datenträger benötigt genügend freien Speicher; Jenkins sperrt den Knoten bei Unterschreiten seines Grenzwerts. Ein laufender Container allein belegt keine verfügbaren Jenkins-Executors.
-|Seed schlägt fehl oder Organisationsjob fehlt |Seed-Konsolenausgabe, Themenrepo-Mount und Gültigkeit der Konfiguration prüfen. Nach Änderungen am Themenrepo erneut seeden.
+|Seed schlägt fehl oder Organisationsjob fehlt |Seed-Konsolenausgabe, GitHub-Erreichbarkeit, Repository-URL, Branch und Gültigkeit der Konfiguration prüfen. Nach Änderungen am Themenrepo erneut seeden.
 |Manifest fehlt, Portal startet nicht |Vor Erstpublikation erwartet. Initialisierung und anschliessende Lieferung prüfen; Gateway und Jenkins müssen unabhängig davon erreichbar sein.
 |Manifest vorhanden, aber ungültig oder ohne DuckDB |Image-/Themenrepo-Stände und Publikationsbericht prüfen. Keinen neuen leeren Bestand über die vorhandene Publikation legen.
 |Gateway liefert 502/504 |Bereitschaft und Logs des betroffenen Backends prüfen. Ein erfolgreiches `/gateway-health` bestätigt dessen Funktion nicht.
