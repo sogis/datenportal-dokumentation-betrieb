@@ -19,10 +19,12 @@ nicht in diesen Ablauf.
 
 [NOTE]
 ====
-Die Anleitung verwendet Jenkins `0.1.0-3`, das native Sodata-Image `0.1.10`
+Die Anleitung verwendet Jenkins `0.1.0-3`, das native Sodata-Image `0.1.11`
 und Dokumentation `0.1.18`. Image-Versionen, Themenrepo und Jenkins-Konfiguration
-müssen zusammenpassen. Der Prüfstand und verbleibende Einschränkungen stehen im
-link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Prüfprotokoll vom 30.09.2026].
+müssen zusammenpassen. Der aktuelle Image-Prüfstand steht im
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-sodata-0.1.11.md[Prüfnachweis für Sodata 0.1.11].
+Der frühere vollständige Stackdurchlauf bleibt im
+link:https://github.com/sogis/datenportal-dokumentation-betrieb/blob/main/pruefprotokolle/2026-09-30-registry-stack.md[Registry-Prüfprotokoll vom 30.09.2026] dokumentiert.
 ====
 
 === Komponenten und Wege durch das Gateway
@@ -99,10 +101,25 @@ beibehalten. Keine unversionierten Tags wie `latest` verwenden:
 [source,ini]
 ----
 DATENPORTAL_JENKINS_IMAGE=sogis/datenportal-jenkins:0.1.0-3
-DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.10
+DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.11
 DATENPORTAL_DOCS_IMAGE=sogis/datenportal-dokumentation:0.1.18
 ----
 ====
+
+Bei einer bereits initialisierten Installation mit gültigem Publikationsmanifest
+in `.env` ausdrücklich `DATENPORTAL_SODATA_IMAGE=sogis/datenportal-sodata:0.1.11`
+setzen. Anschliessend das Image laden und nur den Sodata-Container neu erstellen:
+
+[source,bash]
+----
+docker compose -f compose.yaml -f compose.registry.yaml pull sodata
+docker compose -f compose.yaml -f compose.registry.yaml up -d --no-deps --force-recreate --wait --wait-timeout 120 sodata
+----
+
+Ein `restart sodata` übernimmt kein neues Image. Publikationsbestand, Volumes
+und Secrets bleiben erhalten; die Erstinitialisierung nicht wiederholen.
+Bei einer frischen Installation folgt der Sodata-Start erst nach der unten
+beschriebenen Testpublikation.
 
 Diese Tags sowie die in Compose fixierten Images für Editor, Garage, APISIX,
 rclone und AWS CLI wurden am 30.09.2026 direkt in der Registry geprüft; alle
@@ -264,14 +281,10 @@ kommen aus der gerade erzeugten Publikation; Portal und Dateien werden über
 APISIX ausgeliefert. Die interne Health-Abfrage ist erlaubt, obwohl dieselbe
 Administrationsadresse öffentlich 403 liefert.
 
-[NOTE]
-====
-Im geprüften nativen Image `0.1.10` liefert «Daten erkunden» HTTP 500.
-Es fehlen Reflection-Metadaten für `ExploreContextDto` im Native-Build.
-Suche, Detailseiten und Downloads funktionieren. «Erkunden» erst mit einem
-korrigierten veröffentlichten nativen Image erneut abnehmen; Details stehen
-im oben verlinkten Prüfprotokoll.
-====
+Anschliessend «Daten erkunden» öffnen, das Laden der Tabellen abwarten und
+eine einfache Abfrage auf die gelieferte Parquet-Datei ausführen. Das Ergebnis
+muss Zeilen aus der Testlieferung anzeigen. Bereits offene Explore-Seiten vor
+der Prüfung neu laden.
 
 Das Portal lädt den Bestand beim Start. Für diesen ersten Durchgang ist deshalb
 kein Reload-Token nötig. Nach einer weiteren Lieferung kann der lokale

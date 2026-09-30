@@ -38,8 +38,10 @@ asciidoctor -o /tmp/datenportal-betrieb.html docs/biblios/master.adoc
 Mit einem isolierten Dev-Stack ohne Schwester-Checkouts geprüft: versionierte
 Images, GitHub-Seed, Erstpublikation, CSV-Anlieferung über Jenkins, natives
 Sodata mit Suche/Detailseite/Download sowie Neustart mit erhaltenem Bestand.
-Bekannte Einschränkung: «Daten erkunden» liefert im nativen Sodata-Image
-`0.1.10` HTTP 500 wegen fehlender Reflection-Metadaten.
+Die Anleitung verwendet jetzt das native Sodata-Image `0.1.11` mit dem Explore-Fix.
+Der [Prüfnachweis für 0.1.11](pruefprotokolle/2026-09-30-sodata-0.1.11.md)
+ergänzt den historischen Stackdurchlauf um den isolierten Image-Regressionstest
+und die CI-Prüfungen auf AMD64 und ARM64.
 
 Das [Prüfprotokoll vom 28.09.2026](pruefprotokolle/2026-09-28-lokaler-stack.md)
 bleibt als historischer Nachweis des früheren Ablaufs erhalten.
