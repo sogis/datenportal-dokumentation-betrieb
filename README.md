@@ -34,6 +34,11 @@ asciidoctor -o /tmp/datenportal-betrieb.html docs/biblios/master.adoc
 
 ## Prüfstand des lokalen Einstiegs
 
+[Automatischer Stackstart vom 08.10.2026](pruefprotokolle/2026-10-08-automatischer-stackstart.md):
+Frischer und erneuter Start mit lokalen Themenrepo-Quellen sowie Registry-only
+ohne Schwester-Checkouts, einschliesslich Seed, Erstpublikation, Portal,
+erhaltenem Bestand und Container-Sperre bei getrenntem Host-Client.
+
 [Registry-Prüfprotokoll vom 30.09.2026](pruefprotokolle/2026-09-30-registry-stack.md):
 Mit einem isolierten Dev-Stack ohne Schwester-Checkouts geprüft: versionierte
 Images, GitHub-Seed, Erstpublikation, CSV-Anlieferung über Jenkins, natives

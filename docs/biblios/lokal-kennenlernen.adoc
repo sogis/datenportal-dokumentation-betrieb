@@ -118,8 +118,8 @@ docker compose -f compose.yaml -f compose.registry.yaml up -d --no-deps --force-
 
 Ein `restart sodata` übernimmt kein neues Image. Publikationsbestand, Volumes
 und Secrets bleiben erhalten; die Erstinitialisierung nicht wiederholen.
-Bei einer frischen Installation folgt der Sodata-Start erst nach der unten
-beschriebenen Testpublikation.
+Bei einer frischen Installation startet Sodata bereits nach dem automatischen
+Initialaufbau. Ohne CSV-Lieferung zeigt das Portal zunächst einen leeren Katalog.
 
 Diese Tags sowie die in Compose fixierten Images für Editor, Garage, APISIX,
 rclone und AWS CLI wurden am 30.09.2026 direkt in der Registry geprüft; alle
@@ -146,10 +146,15 @@ er muss deshalb nicht in `docker compose -f compose.yaml -f compose.registry.yam
 Garage-Konfiguration zusammen mit den persistenten Daten erhalten und nicht
 committen oder in Diagnoseausgaben kopieren.
 
-Auf einem frischen Stack fehlt `current.json` noch. Die entsprechende Meldung
-von `up.sh` ist erwartet: Sodata bleibt gestoppt. Jenkins, Editor, Dokumentation
-und das Gateway sind bereits nutzbar; die Portaladresse liefert in dieser
-Phase noch keine funktionsfähige Portaloberfläche.
+`up.sh` wartet auf einen erfolgreichen Seed und erzeugt bei einem frischen
+lokalen Garage-Bestand `current.json` mit Datenblattsammlung und gültiger
+DuckDB. Der bestehende Root-Task läuft bei pausiertem Jenkins in einer eigenen
+beschreibbaren Kopie des Seed-Checkouts; Git bleibt unverändert.
+Danach startet das Portal automatisch. Ein fehlender gemeinsamer Reload-Token
+wird lokal erzeugt; bestehende Secrets bleiben erhalten.
+Jeder erneute Start seedet neu und erhält den vorhandenen Publikationsstand.
+Die gemeinsame Test-JCasC liegt im Dev-Stack, auch im lokalen Themenrepo-Modus;
+ein Jenkins-Quellcheckout ist nur für lokale Builds erforderlich.
 
 === Öffentliche Zugänge prüfen
 
@@ -169,7 +174,7 @@ Alle folgenden Pfade liegen unter `http://localhost:8081`:
 Die Dokumentation im Container zeigt den Stand ihres veröffentlichten Images.
 Lokale Änderungen an Dokumentationsquellen erscheinen dort nicht automatisch.
 
-Einige Prüfungen sind bereits vor der ersten Publikation möglich:
+Nach dem erfolgreichen Start die öffentlichen Zugänge prüfen:
 
 [source,bash]
 ----
@@ -183,67 +188,42 @@ curl -sS -o /dev/null -w '%{http_code}\n' http://localhost:8081/actuator/health
 ----
 
 Erwartet werden `ok`, eine 302-Weiterleitung zur Anlieferung, eine
-308-Weiterleitung zum Editorpfad mit abschliessendem Slash, auf einem frischen
-Bestand 404 für das Manifest und jeweils 403 für die Administrationspfade.
+308-Weiterleitung zum Editorpfad mit abschliessendem Slash, 200 für das
+initialisierte Manifest und jeweils 403 für die Administrationspfade.
 `/gateway-health` prüft nur APISIX, nicht die Bereitschaft seiner Backends.
 Editor und Dokumentation zusätzlich im Browser öffnen; auch deren Assets
 müssen über dieselbe Gateway-Adresse laden.
 
-=== Jobs erzeugen und den ersten Bestand initialisieren
+=== Jobs und Initialstand prüfen
 
-. `http://localhost:8081/jenkins/` öffnen und mit dem lokalen Testkonto `admin` / `admin` anmelden.
-. Den automatisch angelegten Job `gretl-datenportal-seed` starten. Erfolgreichen Abschluss und erzeugte Organisationsjobs prüfen. Der Seed publiziert keine Daten; er übernimmt den konfigurierten GitHub-Branch in den Jenkins-Checkout.
-. In «Jenkins verwalten» das Herunterfahren vorbereiten (Quiet Down), sodass keine neuen Builds starten. Laufende Builds vollständig abwarten; Jenkins selbst weiterlaufen lassen.
-. Die gültigen Datenblätter und `shared/data/offices.xtf` im Themenrepo voraussetzen. Die Initialisierung verarbeitet alle Themen, nicht nur das spätere Beispiel.
-
-Der folgende vollständige Block prüft zuerst auf HTTP 404 und erstellt dann
-eine neue beschreibbare Kopie im Jenkins-Volume. Der erfolgreiche Seeder-Checkout
-bleibt dabei unverändert:
-
-[source,bash]
-----
-bash <<'LOCAL'
-set -euo pipefail
-manifest_status=$(curl -sS -o /dev/null -w '%{http_code}' \
-  http://localhost:8081/ch.so.daten/current.json)
-if [ "$manifest_status" != 404 ]; then
-  echo "Keine Erstinitialisierung: Manifest liefert HTTP $manifest_status." >&2
-  exit 1
-fi
-docker compose -f compose.yaml -f compose.registry.yaml exec -T jenkins bash -s <<'SH'
-set -euo pipefail
-publication_init_dir=$(mktemp -d /var/jenkins_home/datenportal-initialize.XXXXXX)
-tar -C /var/jenkins_home/gretl-datenportal/topic-repo \
-  --exclude=.git --exclude=.gradle --exclude=build --exclude=.DS_Store \
-  -cf - . | tar -C "$publication_init_dir" -xf -
-cd "$publication_init_dir"
-./shared/bin/gradlew-java17.sh --no-daemon \
-  -I "$PWD/shared/gradle/init.gradle" initializePublication \
-  -Ps3Publish=true -PgitWriteBack=false -PreloadPortal=false </dev/null
-printf 'Initialisierung: %s\n' "$publication_init_dir/build/publication/outputs"
-SH
-LOCAL
-----
-
-Java, Offline-Bundle und S3-Zugänge kommen aus dem Jenkins-Container. Kein
-`--offline` ergänzen, da HTTP-Abfragen zum Ablauf gehören. Die Arbeitskopie
-bleibt für Diagnose erhalten. Den erfolgreichen Abschluss und `report.json`
-im ausgegebenen Verzeichnis prüfen, danach das Manifest abrufen:
+`up.sh` nennt den erfolgreichen Seed-Build und die Release-ID. In Jenkins
+die erzeugten Organisationsjobs prüfen. Ein Seed allein publiziert keine Daten;
+der gemeinsame Start führt den administrativen Erstaufbau zusätzlich aus.
 
 [source,bash]
 ----
 curl -fsS http://localhost:8081/ch.so.daten/current.json
+docker compose -f compose.yaml -f compose.registry.yaml exec -T jenkins curl -fsS http://sodata:8080/actuator/health
 ----
 
-Das Manifest muss eine `releaseId`, eine Datenblattsammlung und eine gültige
-DuckDB referenzieren. Ohne initialen Datenkatalog ist `catalog: null` zulässig.
-Die referenzierten Dateien müssen relativ zu `/ch.so.daten/` abrufbar sein.
-Nach erfolgreicher Prüfung Quiet Down in Jenkins aufheben.
+Das Manifest referenziert eine Datenblattsammlung und eine gültige DuckDB.
+Ohne Datenlieferung ist `catalog: null` korrekt. Die referenzierten Dateien
+müssen relativ zu `/ch.so.daten/` erreichbar sein; `opendata.rdf` enthält
+zunächst keine Datensätze.
 
-Bei einem Fehler zuerst Bericht und Manifest prüfen. Ein vorhandenes Manifest
-nicht löschen und die Erstinitialisierung nicht wiederholen. Die fachlichen
-Hintergründe und die Prüfung des Publikationsbestands stehen in <<bootstrap>>;
-die dortigen OpenShift-Befehle werden für diesen lokalen Ablauf nicht benötigt.
+Für Migration oder abweichende Ziele `up.sh --registry-only --infrastructure-only`
+verwenden und danach bewusst administrativ initialisieren. Die vollständige
+link:https://codeberg.org/edigonzales/datenportal-dev-stack/src/branch/main/docs/biblios/inbetriebnahme.adoc[Stack-Inbetriebnahme]
+beschreibt diesen Sonderweg. Das produktive Kapitel <<bootstrap>> bleibt ein
+expliziter administrativer Ablauf.
+
+Fehlt `current.json` bei vorhandenen versionierten Publikationsartefakten,
+verweigert der Start einen neuen Erststand. Den bisherigen Bestand klären.
+
+Bei Fehler oder Timeout zuerst `.runtime/<compose-projekt>/bootstrap.json`,
+den ausgegebenen Gradle-Log und den Bericht der Initialisierungsarbeitskopie
+prüfen. Ein Containerlauf kann nach Trennung vom Host weiterlaufen. Ein
+vorhandenes Manifest nicht löschen und unklare Publikationen nicht wiederholen.
 
 === Eine CSV anliefern und das Portal öffnen
 
@@ -263,11 +243,11 @@ curl -fL --output demo-inputs/meta-ch.so.bevoelkerung.altersstruktur.xtf \
 . Organisation `statistikdienst` und Thema `ch.so.bevoelkerung.altersstruktur` wählen.
 . «Lieferung verarbeiten» wählen und als Datendatei `demo-inputs/so_bevo_altersstruktur_2025.csv` auswählen.
 . Als Ausgabe `2025` eintragen. Metadatenupload leer lassen; die initialisierte Datenblattsammlung enthält das zugehörige Datenblatt.
-. «Portal nach Veröffentlichung neu laden» ausgeschaltet lassen. Sodata läuft in diesem ersten Durchgang noch nicht.
+. «Portal nach Veröffentlichung neu laden» einschalten. Sodata läuft bereits; der gemeinsame lokale Reload-Token wurde beim Start eingerichtet.
 . Job starten und einen erfolgreichen Build abwarten. Im zugehörigen `report.json` die angenommene Publikation und den RDF-Export prüfen; `current.json` muss eine neue `releaseId` enthalten.
 
-Nun das native Sodata-Image starten. Wie bei allen direkten Compose-Aufrufen
-die Registry-Override-Datei mit angeben:
+Nach erfolgreichem Reload den bereits gestarteten Portal-Container prüfen.
+Wie bei allen direkten Compose-Aufrufen die Registry-Override-Datei mit angeben:
 
 [source,bash]
 ----
@@ -286,11 +266,11 @@ eine einfache Abfrage auf die gelieferte Parquet-Datei ausführen. Das Ergebnis
 muss Zeilen aus der Testlieferung anzeigen. Bereits offene Explore-Seiten vor
 der Prüfung neu laden.
 
-Das Portal lädt den Bestand beim Start. Für diesen ersten Durchgang ist deshalb
-kein Reload-Token nötig. Nach einer weiteren Lieferung kann der lokale
-Portalstand mit `docker compose -f compose.yaml -f compose.registry.yaml restart sodata` aktualisiert werden. Die
-Konfiguration eines automatischen Reloads gehört zum weiterführenden Betrieb,
-siehe <<sodata>>.
+Das Portal lädt den Bestand beim Start und bei angefordertem Reload nach einer
+Publikation. Für weitere Lieferungen die Reload-Option erneut einschalten und
+`report.json` getrennt auf Publikation, RDF und Reload prüfen. Bei einem
+Reloadfehler bleibt der angenommene S3-Bestand erhalten, das Portal behält seinen
+vorherigen Snapshot. Details stehen unter <<sodata>>.
 
 Zum Kennenlernen des Editors unter `http://localhost:8081/datenblatt-editor/`
 die Datei
@@ -324,10 +304,10 @@ Volumes und die dazugehörigen lokalen Secrets nicht als Fehlerbehebung löschen
 |Job bleibt in der Warteschlange
 |In Jenkins den Ausführungsknoten und dessen Offline-Grund prüfen. Der Docker-Datenträger benötigt genügend freien Speicher; Jenkins sperrt den Knoten bei Unterschreiten seines Grenzwerts. Ein laufender Container allein belegt keine verfügbaren Jenkins-Executors.
 |Seed schlägt fehl oder Organisationsjob fehlt |Seed-Konsolenausgabe, GitHub-Erreichbarkeit, Repository-URL, Branch und Gültigkeit der Konfiguration prüfen. Nach Änderungen am Themenrepo erneut seeden.
-|Manifest fehlt, Portal startet nicht |Vor Erstpublikation erwartet. Initialisierung und anschliessende Lieferung prüfen; Gateway und Jenkins müssen unabhängig davon erreichbar sein.
+|Manifest fehlt, Portal startet nicht |Bei normalem Start Bootstrap-Log und Initialisierungsbericht prüfen; bei Infrastrukturmodus zuerst bewusst initialisieren. Eine CSV-Lieferung ist für den Portalstart nicht erforderlich.
 |Manifest vorhanden, aber ungültig oder ohne DuckDB |Image-/Themenrepo-Stände und Publikationsbericht prüfen. Keinen neuen leeren Bestand über die vorhandene Publikation legen.
 |Gateway liefert 502/504 |Bereitschaft und Logs des betroffenen Backends prüfen. Ein erfolgreiches `/gateway-health` bestätigt dessen Funktion nicht.
-|Neue Publikation fehlt im Portal |Erfolgreichen Publikationsbericht prüfen, dann Sodata neu starten und dessen Healthcheck abwarten.
+|Neue Publikation fehlt im Portal |Publikationsbericht und angeforderten Reload prüfen; bei Reloadfehler bleibt der vorherige Portal-Snapshot bestehen. Internen Portalstatus und Health prüfen.
 |===
 
 Weiterführende Varianten stehen in der
