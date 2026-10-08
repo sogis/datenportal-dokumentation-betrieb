@@ -4,7 +4,7 @@
 :table-caption: Tabelle
 :figure-caption: Abbildung
 :note-caption: Hinweis
-:tip-caption: Tipp
+:important-caption: Wichtig
 :xrefstyle: full
 :chapter-refsig: Kapitel
 :section-refsig: Kapitel
